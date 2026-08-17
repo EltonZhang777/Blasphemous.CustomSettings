@@ -36,11 +36,14 @@ public class CustomSettings : BlasMod
     }
 
     /// <summary>
-    /// Consumes the registration table on scene load (actual injection happens in later tickets)
+    /// Consumes the registration table and injects custom option UI on scene load.
     /// </summary>
     protected override void OnLevelLoaded(string oldLevel, string newLevel)
     {
-        // Consume the registration table on scene load (actual injection happens in later tickets)
-        SettingsMenuRegister.LogRegisteredContents();
+        if (SceneHelper.MenuSceneLoaded)
+        {
+            SettingsMenuRegister.LogRegisteredContents();
+            SettingsMenuInjector.InjectAll();
+        }
     }
 }
