@@ -65,6 +65,29 @@ internal static class SettingsMenuInjector
         toggle.Initialize(option, valueText, selectionObj, valueText);
 
         LinkNavigation(selection, clone);
+
+        // The Selection container's VerticalLayoutGroup is disabled at runtime (it is an editor-time
+        // helper); the vanilla options are laid out by absolute coordinates. Re-pack the list by
+        // temporarily enabling the layout group so it spaces every child (vanilla + injected clones)
+        // automatically, then restore the runtime-disabled state.
+        VerticalLayoutGroup vlg = selection.GetComponent<VerticalLayoutGroup>();
+        if (vlg != null && !vlg.enabled)
+        {
+            vlg.enabled = true;
+            LayoutRebuilder.ForceRebuildLayoutImmediate(selection as RectTransform);
+            vlg.enabled = false;
+        }
+        else if (vlg != null)
+        {
+            // Already enabled — just rebuild so the new clone is spaced in.
+            LayoutRebuilder.ForceRebuildLayoutImmediate(selection as RectTransform);
+        }
+
+        // Diagnostic: inspect the layout setup and where the clone ends up.
+        Transform controls = selection.childCount >= 4 ? selection.GetChild(3) : null;
+        string posOf(Transform t) => t == null ? "n/a" : $"anchored={t.GetComponent<RectTransform>()?.anchoredPosition} local={t.localPosition}";
+        ModLog.Info($"DIAG vlg.enabled={(vlg != null ? vlg.enabled : false)} controls({(controls != null ? controls.name : "null")}) pos={posOf(controls)} childCount={selection.childCount}");
+        ModLog.Info($"DIAG post-layout clone.name=`{clone.name}` localPos={clone.transform.localPosition} anchoredPos={(clone.transform as RectTransform)?.anchoredPosition} sibling={clone.transform.GetSiblingIndex()}/{selection.childCount} activeInHierarchy={clone.activeInHierarchy}");
         ModLog.Info($"Injected custom settings toggle `{option.Id}` into game menu");
     }
 

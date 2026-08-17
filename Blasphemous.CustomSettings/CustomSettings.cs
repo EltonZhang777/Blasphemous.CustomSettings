@@ -36,14 +36,14 @@ public class CustomSettings : BlasMod
     }
 
     /// <summary>
-    /// Consumes the registration table and injects custom option UI on scene load.
+    /// Logs registration counts on scene load. Actual injection is deferred to the
+    /// ShowMenu(GAME) Harmony postfix so the menu is active and laid out.
     /// </summary>
     protected override void OnLevelLoaded(string oldLevel, string newLevel)
     {
         if (SceneHelper.MenuSceneLoaded)
         {
             SettingsMenuRegister.LogRegisteredContents();
-            SettingsMenuInjector.InjectAll();
         }
     }
 }
