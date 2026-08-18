@@ -92,28 +92,62 @@ internal static class SettingsMenuInjector
     }
 
     /// <summary>
-    /// Links the cloned option into the existing menu navigation: down from the previous last option, up from this one.
+    /// Links the cloned option into the existing menu navigation. The vanilla GAME menu is a ring:
+    /// the first option's selectOnUp points at the last, and the last's selectOnDown points at the first.
+    /// We insert the clone into that ring so up/down both pass through it.
+    /// Navigation uses the EventsButton living on each option's "XXXText" child, not the option root.
     /// </summary>
     private static void LinkNavigation(Transform selection, GameObject clone)
     {
-        // The clone is appended as the last child; the option just above it is the previous last child
-        if (selection.childCount < 2)
+        ModLog.Info("[Diag] Linking Navigation...");
+        if (selection.childCount < 3)
+        {
+            ModLog.Error($"Failed to link custom settings navigation: selection has {selection.childCount} child(ren)");
             return;
+        }
 
+        // prev = last vanilla option (ControlsRemap), first = first vanilla option (AudioLanguage), clone = injected toggle.
         Transform previous = selection.GetChild(selection.childCount - 2);
-        EventsButton prevButton = previous.GetComponent<EventsButton>();
-        EventsButton thisButton = clone.GetComponent<EventsButton>();
+        Transform first = selection.GetChild(0);
+        EventsButton prevButton = previous.GetComponentsInChildren<EventsButton>(true).FirstOrDefault();
+        EventsButton firstButton = first.GetComponentsInChildren<EventsButton>(true).FirstOrDefault();
+        EventsButton thisButton = clone.GetComponentsInChildren<EventsButton>(true).FirstOrDefault();
 
-        if (prevButton == null || thisButton == null)
+        ModLog.Info($"DIAG navigation components previous={previous.name}:{previous.GetComponentsInChildren<EventsButton>(true).Length} first={first.name}:{first.GetComponentsInChildren<EventsButton>(true).Length} clone={clone.name}:{clone.GetComponentsInChildren<EventsButton>(true).Length}");
+        if (prevButton == null || firstButton == null || thisButton == null)
+        {
+            ModLog.Error($"Failed to link custom settings navigation: previousButton={(prevButton != null)} firstButton={(firstButton != null)} cloneButton={(thisButton != null)}");
             return;
+        }
 
+        // Give the clone's navigation node a distinct name so DIAG selected-changed logs can tell it apart
+        // from the vanilla "EnableHowToPlayText" node it was cloned from.
+        thisButton.gameObject.name = "ModToggle_NavText";
+
+        // prev.down -> clone, clone.up -> prev
         var prevNav = prevButton.navigation;
+        prevNav.mode = Navigation.Mode.Explicit;
         prevNav.selectOnDown = thisButton;
         prevButton.navigation = prevNav;
 
-        var thisNav = thisButton.navigation;
-        thisNav.selectOnUp = prevButton;
-        thisButton.navigation = thisNav;
+        var upNav = thisButton.navigation;
+        upNav.mode = Navigation.Mode.Explicit;
+        upNav.selectOnUp = prevButton;
+        thisButton.navigation = upNav;
+
+        // clone.down -> first, first.up -> clone (close the ring through the clone)
+        var downNav = thisButton.navigation;
+        downNav.selectOnDown = firstButton;
+        thisButton.navigation = downNav;
+
+        var firstNav = firstButton.navigation;
+        firstNav.mode = Navigation.Mode.Explicit;
+        firstNav.selectOnUp = thisButton;
+        firstButton.navigation = firstNav;
+
+        // Diagnostic: navigation/interaction state of the clone and its neighbours.
+        string navDesc(EventsButton b) => b == null ? "null" : $"mode={b.navigation.mode} interactable={b.interactable} isActive={b.IsActive()} up={(b.navigation.selectOnUp != null ? b.navigation.selectOnUp.name : "null")} down={(b.navigation.selectOnDown != null ? b.navigation.selectOnDown.name : "null")}";
+        ModLog.Info($"DIAG nav prev({prevButton.name}) [{navDesc(prevButton)}] first({firstButton.name}) [{navDesc(firstButton)}] clone({thisButton.name}) [{navDesc(thisButton)}]");
     }
 
     private static GameObject FindChildByName(Transform root, string name)

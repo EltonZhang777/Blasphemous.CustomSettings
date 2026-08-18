@@ -60,6 +60,20 @@ internal class ModToggleOption : MonoBehaviour
     /// </summary>
     internal void NotifyClose() => _owner.OnClose?.Invoke();
 
+    // Diagnostic: log EventSystem current-selection changes to determine how navigation is driven.
+    private UnityEngine.GameObject _lastSelected;
+    private void Update()
+    {
+        UnityEngine.EventSystems.EventSystem es = UnityEngine.EventSystems.EventSystem.current;
+        if (es == null)
+            return;
+        UnityEngine.GameObject current = es.currentSelectedGameObject;
+        if (ReferenceEquals(current, _lastSelected))
+            return;
+        _lastSelected = current;
+        UnityEngine.Debug.Log($"[CustomSettings] DIAG selected changed to `{(current != null ? current.name : "null")}`");
+    }
+
     private void UpdateValueText()
     {
         if (_valueText != null)
