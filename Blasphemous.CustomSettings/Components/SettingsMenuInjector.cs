@@ -1,5 +1,6 @@
 using Blasphemous.ModdingAPI;
 using Gameplay.UI.Others.Buttons;
+using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
 using UnityEngine.UI;
@@ -17,25 +18,43 @@ internal static class SettingsMenuInjector
     /// </summary>
     internal static void InjectAll()
     {
-        foreach (SettingsOption option in SettingsMenuRegister.RegisteredOptions.Where(x => x.Type == OptionType.Toggle).ToList())
-        {
-            InjectToggleIntoGame(option);
-        }
-    }
-
-    private static void InjectToggleIntoGame(SettingsOption option)
-    {
-        // Already injected into this scene
-        if (option.RuntimeUI != null)
+        List<SettingsOption> options = SettingsMenuRegister.RegisteredOptions
+            .Where(x => x.Type == OptionType.Toggle)
+            .ToList();
+        if (options.Count == 0)
             return;
 
         Transform selection = MenuLocator.FindOptionsSelection(VanillaMenuTarget.Game);
+        if (selection == null)
+            return;
+
         GameObject template = TemplateLocator.FindToggleTemplate();
-        if (selection == null || template == null)
+        if (template == null)
+            return;
+
+        foreach (SettingsOption option in options)
         {
-            ModLog.Error($"Skipping injection of `{option.Id}`: could not locate game menu or toggle template");
+            InjectToggleIntoGame(option, selection, template);
+        }
+
+        // Reconcile the complete ring on every GAME menu open. This also repairs the ring after
+        // OptionsWidget or a scene transition has restored the vanilla navigation links.
+        LinkNavigation(selection);
+    }
+
+    private static void InjectToggleIntoGame(SettingsOption option, Transform selection, GameObject template)
+    {
+        GameObject existing = FindRuntimeClone(option, selection);
+        if (existing != null)
+        {
+            option.RuntimeUI = existing;
+            ModLog.Info($"Reusing injected custom settings toggle `{option.Id}` in current game menu");
             return;
         }
+
+        // A RuntimeUI reference can point to an object destroyed with the previous menu scene.
+        // Clear it before creating the current scene's instance.
+        option.RuntimeUI = null;
 
         // Diagnostic: where did we resolve the game selection to?
         ModLog.Info($"DIAG selection.name=`{selection.name}` parent=`{(selection.parent != null ? selection.parent.name : "null")}` childCount={selection.childCount} active={selection.gameObject.activeInHierarchy}");
@@ -64,8 +83,6 @@ internal static class SettingsMenuInjector
         ModToggleOption toggle = clone.AddComponent<ModToggleOption>();
         toggle.Initialize(option, valueText, selectionObj, valueText);
 
-        LinkNavigation(selection, clone);
-
         // The Selection container's VerticalLayoutGroup is disabled at runtime (it is an editor-time
         // helper); the vanilla options are laid out by absolute coordinates. Re-pack the list by
         // temporarily enabling the layout group so it spaces every child (vanilla + injected clones)
@@ -91,13 +108,25 @@ internal static class SettingsMenuInjector
         ModLog.Info($"Injected custom settings toggle `{option.Id}` into game menu");
     }
 
+    private static GameObject FindRuntimeClone(SettingsOption option, Transform selection)
+    {
+        GameObject runtime = option.RuntimeUI;
+        if (runtime != null && runtime.transform.parent == selection)
+            return runtime;
+
+        GameObject namedClone = FindChildByName(selection, $"ModToggle {option.Id}");
+        return namedClone != null && namedClone.GetComponent<ModToggleOption>() != null
+            ? namedClone
+            : null;
+    }
+
     /// <summary>
     /// Links the cloned option into the existing menu navigation. The vanilla GAME menu is a ring:
     /// the first option's selectOnUp points at the last, and the last's selectOnDown points at the first.
     /// We insert the clone into that ring so up/down both pass through it.
     /// Navigation uses the EventsButton living on each option's "XXXText" child, not the option root.
     /// </summary>
-    private static void LinkNavigation(Transform selection, GameObject clone)
+    private static void LinkNavigation(Transform selection)
     {
         ModLog.Info("[Diag] Linking Navigation...");
         if (selection.childCount < 3)
@@ -106,48 +135,86 @@ internal static class SettingsMenuInjector
             return;
         }
 
-        // prev = last vanilla option (ControlsRemap), first = first vanilla option (AudioLanguage), clone = injected toggle.
-        Transform previous = selection.GetChild(selection.childCount - 2);
         Transform first = selection.GetChild(0);
-        EventsButton prevButton = previous.GetComponentsInChildren<EventsButton>(true).FirstOrDefault();
         EventsButton firstButton = first.GetComponentsInChildren<EventsButton>(true).FirstOrDefault();
-        EventsButton thisButton = clone.GetComponentsInChildren<EventsButton>(true).FirstOrDefault();
 
-        ModLog.Info($"DIAG navigation components previous={previous.name}:{previous.GetComponentsInChildren<EventsButton>(true).Length} first={first.name}:{first.GetComponentsInChildren<EventsButton>(true).Length} clone={clone.name}:{clone.GetComponentsInChildren<EventsButton>(true).Length}");
-        if (prevButton == null || firstButton == null || thisButton == null)
+        Transform previous = null;
+        var customToggles = new List<ModToggleOption>();
+        var customButtons = new List<EventsButton>();
+        for (int i = 0; i < selection.childCount; i++)
         {
-            ModLog.Error($"Failed to link custom settings navigation: previousButton={(prevButton != null)} firstButton={(firstButton != null)} cloneButton={(thisButton != null)}");
+            Transform child = selection.GetChild(i);
+            ModToggleOption customToggle = child.GetComponent<ModToggleOption>();
+            EventsButton button = child.GetComponentsInChildren<EventsButton>(true).FirstOrDefault();
+            if (customToggle != null)
+            {
+                if (button == null)
+                {
+                    ModLog.Error($"Failed to link custom settings navigation: custom child `{child.name}` has no EventsButton");
+                    return;
+                }
+                customToggles.Add(customToggle);
+                customButtons.Add(button);
+            }
+            else if (button != null)
+            {
+                // The last vanilla child is the tail of the original GAME menu ring.
+                previous = child;
+            }
+        }
+
+        EventsButton prevButton = previous != null
+            ? previous.GetComponentsInChildren<EventsButton>(true).FirstOrDefault()
+            : null;
+        ModLog.Info($"DIAG navigation components previous={(previous != null ? previous.name : "null")}:{(previous != null ? previous.GetComponentsInChildren<EventsButton>(true).Length : 0)} first={first.name}:{first.GetComponentsInChildren<EventsButton>(true).Length} customCount={customButtons.Count}");
+        if (prevButton == null || firstButton == null || customButtons.Count == 0)
+        {
+            ModLog.Error($"Failed to link custom settings navigation: previousButton={(prevButton != null)} firstButton={(firstButton != null)} customCount={customButtons.Count}");
             return;
         }
 
-        // Give the clone's navigation node a distinct name so DIAG selected-changed logs can tell it apart
-        // from the vanilla "EnableHowToPlayText" node it was cloned from.
-        thisButton.gameObject.name = "ModToggle_NavText";
+        EventsButton previousButton = prevButton;
+        for (int i = 0; i < customButtons.Count; i++)
+        {
+            EventsButton customButton = customButtons[i];
+            customButton.gameObject.name = customButtons.Count == 1
+                ? "ModToggle_NavText"
+                : $"ModToggle_NavText_{i}";
 
-        // prev.down -> clone, clone.up -> prev
-        var prevNav = prevButton.navigation;
-        prevNav.mode = Navigation.Mode.Explicit;
-        prevNav.selectOnDown = thisButton;
-        prevButton.navigation = prevNav;
-
-        var upNav = thisButton.navigation;
-        upNav.mode = Navigation.Mode.Explicit;
-        upNav.selectOnUp = prevButton;
-        thisButton.navigation = upNav;
-
-        // clone.down -> first, first.up -> clone (close the ring through the clone)
-        var downNav = thisButton.navigation;
-        downNav.selectOnDown = firstButton;
-        thisButton.navigation = downNav;
-
-        var firstNav = firstButton.navigation;
-        firstNav.mode = Navigation.Mode.Explicit;
-        firstNav.selectOnUp = thisButton;
-        firstButton.navigation = firstNav;
+            SetDown(previousButton, customButton);
+            SetUp(customButton, previousButton);
+            previousButton = customButton;
+        }
+        SetDown(previousButton, firstButton);
+        SetUp(firstButton, previousButton);
 
         // Diagnostic: navigation/interaction state of the clone and its neighbours.
         string navDesc(EventsButton b) => b == null ? "null" : $"mode={b.navigation.mode} interactable={b.interactable} isActive={b.IsActive()} up={(b.navigation.selectOnUp != null ? b.navigation.selectOnUp.name : "null")} down={(b.navigation.selectOnDown != null ? b.navigation.selectOnDown.name : "null")}";
-        ModLog.Info($"DIAG nav prev({prevButton.name}) [{navDesc(prevButton)}] first({firstButton.name}) [{navDesc(firstButton)}] clone({thisButton.name}) [{navDesc(thisButton)}]");
+        EventsButton firstCustom = customButtons[0];
+        ModLog.Info($"DIAG nav prev({prevButton.name}) [{navDesc(prevButton)}] first({firstButton.name}) [{navDesc(firstButton)}] clone({firstCustom.name}) [{navDesc(firstCustom)}]");
+
+        for (int i = 0; i < customButtons.Count; i++)
+        {
+            EventsButton up = i == 0 ? prevButton : customButtons[i - 1];
+            EventsButton down = i == customButtons.Count - 1 ? firstButton : customButtons[i + 1];
+            customToggles[i].AttachNavigation(up, down, customButtons[i]);
+        }
+    }
+
+    private static void SetDown(EventsButton source, EventsButton target)
+    {
+        Navigation navigation = source.navigation;
+        navigation.mode = Navigation.Mode.Explicit;
+        navigation.selectOnDown = target;
+        source.navigation = navigation;
+    }
+
+    private static void SetUp(EventsButton source, EventsButton target)
+    {
+        Navigation navigation = source.navigation;
+        navigation.mode = Navigation.Mode.Explicit;
+        navigation.selectOnUp = target;
+        source.navigation = navigation;
     }
 
     private static GameObject FindChildByName(Transform root, string name)
