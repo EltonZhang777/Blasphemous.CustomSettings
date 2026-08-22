@@ -1,8 +1,11 @@
 using Blasphemous.ModdingAPI;
 using Gameplay.UI.Others.Buttons;
+using Gameplay.UI.Others.MenuLogic;
+using Rewired.Integration.UnityUI;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
+using UnityEngine.EventSystems;
 using UnityEngine.UI;
 
 namespace Blasphemous.CustomSettings.Components;
@@ -12,6 +15,171 @@ namespace Blasphemous.CustomSettings.Components;
 /// </summary>
 internal static class SettingsMenuInjector
 {
+    private static readonly Dictionary<RewiredStandaloneInputModule, string> SuspendedVerticalAxes
+        = new Dictionary<RewiredStandaloneInputModule, string>();
+    private static readonly Dictionary<CustomEventInput, bool> SuspendedCustomInputs
+        = new Dictionary<CustomEventInput, bool>();
+    private static readonly Dictionary<EventsButton, Navigation> SuspendedVerticalNavigations
+        = new Dictionary<EventsButton, Navigation>();
+
+    private static ModNavigationController _navigationController;
+    private static bool _gameMenuActive;
+    private static string _manualVerticalAxis;
+    private static float _manualRepeatDelay;
+    private static float _manualInputActionsPerSecond = 10f;
+    private static float _nextCustomInputScanTime;
+
+    /// <summary>
+    /// Makes the custom navigation controller the only vertical-navigation authority while
+    /// the GAME submenu is active. Rewired still handles horizontal movement and submit/cancel.
+    /// </summary>
+    internal static void EnterGameMenu()
+    {
+        PruneSuspendedModules();
+        _gameMenuActive = true;
+
+        _nextCustomInputScanTime = 0f;
+        SuspendCompetingCustomInputs();
+        RewiredStandaloneInputModule[] rewiredModules = Object.FindObjectsOfType<RewiredStandaloneInputModule>();
+
+        foreach (RewiredStandaloneInputModule module in rewiredModules)
+        {
+            if (module == null)
+                continue;
+
+            if (!SuspendedVerticalAxes.ContainsKey(module))
+            {
+                SuspendedVerticalAxes.Add(module, module.verticalAxis);
+                if (string.IsNullOrEmpty(_manualVerticalAxis))
+                {
+                    _manualVerticalAxis = module.verticalAxis;
+                    _manualRepeatDelay = module.repeatDelay;
+                    _manualInputActionsPerSecond = module.inputActionsPerSecond;
+                }
+            }
+            module.verticalAxis = string.Empty;
+        }
+
+        EnsureNavigationController();
+        ModLog.Info($"DIAG navigation input authority=ModNavigationController customEventInputSuspended={SuspendedCustomInputs.Count} rewiredModules={rewiredModules.Length} rewiredVerticalSuspended={SuspendedVerticalAxes.Count} axis={_manualVerticalAxis}");
+    }
+
+    /// <summary>
+    /// Restores all input components after leaving the GAME submenu.
+    /// </summary>
+    internal static void ExitGameMenu()
+    {
+        _gameMenuActive = false;
+        if (_navigationController != null)
+            _navigationController.DisableNavigation();
+        RestoreVerticalNavigations();
+        RestoreVerticalAxes();
+        RestoreCustomInputs();
+        _manualVerticalAxis = null;
+        _manualRepeatDelay = 0f;
+        _manualInputActionsPerSecond = 10f;
+        _nextCustomInputScanTime = 0f;
+    }
+
+    /// <summary>
+    /// Keeps a late-enabled legacy CustomEventInput from becoming a second vertical authority.
+    /// </summary>
+    internal static void SuspendCompetingCustomInputs()
+    {
+        if (Time.unscaledTime < _nextCustomInputScanTime && SuspendedCustomInputs.Count > 0)
+            return;
+        _nextCustomInputScanTime = Time.unscaledTime + 0.25f;
+
+        CustomEventInput[] customInputs = Object.FindObjectsOfType<CustomEventInput>();
+        foreach (CustomEventInput input in customInputs)
+        {
+            if (input == null)
+                continue;
+
+            if (!SuspendedCustomInputs.ContainsKey(input))
+                SuspendedCustomInputs.Add(input, input.enabled);
+            input.enabled = false;
+        }
+    }
+
+    /// <summary>
+    /// Binds the complete GAME-menu ring to the single vertical navigation controller.
+    /// </summary>
+    internal static void ConfigureManualNavigation(IList<EventsButton> buttons)
+    {
+        ModNavigationController controller = EnsureNavigationController();
+        if (controller == null)
+            return;
+
+        controller.Configure(
+            buttons,
+            _manualVerticalAxis,
+            _manualRepeatDelay,
+            _manualInputActionsPerSecond);
+    }
+
+    internal static bool ShouldBypassKeepFocus()
+    {
+        if (!_gameMenuActive || _navigationController == null || !_navigationController.enabled)
+            return false;
+
+        EventSystem eventSystem = EventSystem.current;
+        return eventSystem != null
+            && _navigationController.IsNavigationTarget(eventSystem.currentSelectedGameObject);
+    }
+
+    private static ModNavigationController EnsureNavigationController()
+    {
+        EventSystem eventSystem = EventSystem.current;
+        if (eventSystem == null)
+            return null;
+
+        if (_navigationController == null
+            || _navigationController.gameObject != eventSystem.gameObject)
+        {
+            _navigationController = eventSystem.gameObject.GetComponent<ModNavigationController>();
+            if (_navigationController == null)
+                _navigationController = eventSystem.gameObject.AddComponent<ModNavigationController>();
+        }
+
+        return _navigationController;
+    }
+
+    private static void RestoreVerticalAxes()
+    {
+        foreach (KeyValuePair<RewiredStandaloneInputModule, string> pair in SuspendedVerticalAxes.ToList())
+        {
+            if (pair.Key != null)
+                pair.Key.verticalAxis = pair.Value;
+            SuspendedVerticalAxes.Remove(pair.Key);
+        }
+    }
+
+    private static void RestoreCustomInputs()
+    {
+        foreach (KeyValuePair<CustomEventInput, bool> pair in SuspendedCustomInputs.ToList())
+        {
+            if (pair.Key != null)
+                pair.Key.enabled = pair.Value;
+            SuspendedCustomInputs.Remove(pair.Key);
+        }
+    }
+
+    private static void PruneSuspendedModules()
+    {
+        foreach (RewiredStandaloneInputModule module in SuspendedVerticalAxes.Keys.ToList())
+        {
+            if (module == null)
+                SuspendedVerticalAxes.Remove(module);
+        }
+
+        foreach (CustomEventInput input in SuspendedCustomInputs.Keys.ToList())
+        {
+            if (input == null)
+                SuspendedCustomInputs.Remove(input);
+        }
+    }
+
     /// <summary>
     /// Injects all registered custom options into the vanilla settings menus (called on level load when the menu is present).
     /// Currently injects Toggle options into the GAME submenu (issue #3 scope).
@@ -48,6 +216,10 @@ internal static class SettingsMenuInjector
         if (existing != null)
         {
             option.RuntimeUI = existing;
+            ModToggleOption existingToggle = existing.GetComponent<ModToggleOption>();
+            EventsButton existingButton = existing.GetComponentsInChildren<EventsButton>(true).FirstOrDefault();
+            if (existingToggle != null)
+                existingToggle.AttachButton(existingButton);
             ModLog.Info($"Reusing injected custom settings toggle `{option.Id}` in current game menu");
             return;
         }
@@ -70,9 +242,15 @@ internal static class SettingsMenuInjector
         // Locate the template's value text (the vanilla highlightableText, which displays Enabled/Disabled)
         Text valueText = clone.GetComponentInChildren<Text>(true);
         GameObject selectionObj = FindChildByName(clone.transform, "Selection");
+        EventsButton button = clone.GetComponentsInChildren<EventsButton>(true).FirstOrDefault();
         if (valueText == null)
         {
             ModLog.Error($"Failed to inject `{option.Id}`: no text found in toggle template");
+            return;
+        }
+        if (button == null)
+        {
+            ModLog.Error($"Failed to inject option={option.Id}: no EventsButton found in toggle template");
             return;
         }
 
@@ -82,6 +260,7 @@ internal static class SettingsMenuInjector
         // vanilla option is not yet verified in the scene, so we avoid overwriting the value text).
         ModToggleOption toggle = clone.AddComponent<ModToggleOption>();
         toggle.Initialize(option, valueText, selectionObj, valueText);
+        toggle.AttachButton(button);
 
         // The Selection container's VerticalLayoutGroup is disabled at runtime (it is an editor-time
         // helper); the vanilla options are laid out by absolute coordinates. Re-pack the list by
@@ -141,11 +320,14 @@ internal static class SettingsMenuInjector
         Transform previous = null;
         var customToggles = new List<ModToggleOption>();
         var customButtons = new List<EventsButton>();
+        var navigationButtons = new List<EventsButton>();
         for (int i = 0; i < selection.childCount; i++)
         {
             Transform child = selection.GetChild(i);
             ModToggleOption customToggle = child.GetComponent<ModToggleOption>();
             EventsButton button = child.GetComponentsInChildren<EventsButton>(true).FirstOrDefault();
+            if (button != null)
+                navigationButtons.Add(button);
             if (customToggle != null)
             {
                 if (button == null)
@@ -173,48 +355,48 @@ internal static class SettingsMenuInjector
             return;
         }
 
-        EventsButton previousButton = prevButton;
         for (int i = 0; i < customButtons.Count; i++)
         {
-            EventsButton customButton = customButtons[i];
-            customButton.gameObject.name = customButtons.Count == 1
+            customButtons[i].gameObject.name = customButtons.Count == 1
                 ? "ModToggle_NavText"
                 : $"ModToggle_NavText_{i}";
-
-            SetDown(previousButton, customButton);
-            SetUp(customButton, previousButton);
-            previousButton = customButton;
         }
-        SetDown(previousButton, firstButton);
-        SetUp(firstButton, previousButton);
 
-        // Diagnostic: navigation/interaction state of the clone and its neighbours.
-        string navDesc(EventsButton b) => b == null ? "null" : $"mode={b.navigation.mode} interactable={b.interactable} isActive={b.IsActive()} up={(b.navigation.selectOnUp != null ? b.navigation.selectOnUp.name : "null")} down={(b.navigation.selectOnDown != null ? b.navigation.selectOnDown.name : "null")}";
-        EventsButton firstCustom = customButtons[0];
-        ModLog.Info($"DIAG nav prev({prevButton.name}) [{navDesc(prevButton)}] first({firstButton.name}) [{navDesc(firstButton)}] clone({firstCustom.name}) [{navDesc(firstCustom)}]");
+        SuspendVerticalNavigations(navigationButtons);
 
-        for (int i = 0; i < customButtons.Count; i++)
+        ModLog.Info($"DIAG manual navigation nodes={navigationButtons.Count}");
+        ConfigureManualNavigation(navigationButtons);
+    }
+
+    private static void SuspendVerticalNavigations(IList<EventsButton> buttons)
+    {
+        if (buttons == null)
+            return;
+
+        foreach (EventsButton button in buttons)
         {
-            EventsButton up = i == 0 ? prevButton : customButtons[i - 1];
-            EventsButton down = i == customButtons.Count - 1 ? firstButton : customButtons[i + 1];
-            customToggles[i].AttachNavigation(up, down, customButtons[i]);
+            if (button == null)
+                continue;
+
+            if (!SuspendedVerticalNavigations.ContainsKey(button))
+                SuspendedVerticalNavigations.Add(button, button.navigation);
+
+            Navigation navigation = button.navigation;
+            navigation.mode = Navigation.Mode.Explicit;
+            navigation.selectOnUp = null;
+            navigation.selectOnDown = null;
+            button.navigation = navigation;
         }
     }
 
-    private static void SetDown(EventsButton source, EventsButton target)
+    private static void RestoreVerticalNavigations()
     {
-        Navigation navigation = source.navigation;
-        navigation.mode = Navigation.Mode.Explicit;
-        navigation.selectOnDown = target;
-        source.navigation = navigation;
-    }
-
-    private static void SetUp(EventsButton source, EventsButton target)
-    {
-        Navigation navigation = source.navigation;
-        navigation.mode = Navigation.Mode.Explicit;
-        navigation.selectOnUp = target;
-        source.navigation = navigation;
+        foreach (KeyValuePair<EventsButton, Navigation> pair in SuspendedVerticalNavigations.ToList())
+        {
+            if (pair.Key != null)
+                pair.Key.navigation = pair.Value;
+            SuspendedVerticalNavigations.Remove(pair.Key);
+        }
     }
 
     private static GameObject FindChildByName(Transform root, string name)
