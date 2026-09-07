@@ -14,6 +14,9 @@ namespace Blasphemous.CustomSettings.Components;
 /// </summary>
 internal class ModToggleOption : MonoBehaviour
 {
+    internal static readonly Color NormalOptionColor = new Color32(0x86, 0x76, 0x66, 0xff);
+    internal static readonly Color HighlightedOptionColor = new Color32(0xfe, 0xd3, 0x11, 0xff);
+
     private SettingsOption _owner;
     private Text _valueText;
     private GameObject _selection;
@@ -88,7 +91,11 @@ internal class ModToggleOption : MonoBehaviour
         int selectActionPersistentListeners = 0;
         MenuButton menuButton = button.GetComponent<MenuButton>();
         if (menuButton != null)
+        {
             selectActionPersistentListeners = DisablePersistentListeners(menuButton.OnSelectAction);
+            menuButton.textColorDefault = NormalOptionColor;
+            menuButton.textColorHighlighted = HighlightedOptionColor;
+        }
         button.onClick.AddListener(ToggleValue);
 
         ModToggleSelectionRelay relay = button.GetComponent<ModToggleSelectionRelay>();
@@ -150,10 +157,10 @@ internal class ModToggleOption : MonoBehaviour
     {
         if (_selection != null)
             _selection.SetActive(_selected);
+
+        Color color = _selected ? HighlightedOptionColor : NormalOptionColor;
         if (_highlightableText != null)
-            _highlightableText.color = _selected
-                ? new Color(0.80784315f, 0.84705883f, 0.49803922f)
-                : new Color(0.972549f, 0.89411765f, 0.78039217f);
+            _highlightableText.color = color;
     }
 }
 
@@ -173,7 +180,7 @@ internal sealed class ModToggleSelectionRelay : MonoBehaviour, ISelectHandler, I
     {
         Debug.Log($"[CustomSettings] DIAG relay select button={gameObject.name} current={(EventSystem.current != null && EventSystem.current.currentSelectedGameObject != null ? EventSystem.current.currentSelectedGameObject.name : "null")} frame={Time.frameCount}");
         if (_owner != null)
-            _owner.SetSelected(true);
+            SettingsMenuInjector.SelectCustomToggle(_owner);
     }
 
     public void OnDeselect(BaseEventData eventData)

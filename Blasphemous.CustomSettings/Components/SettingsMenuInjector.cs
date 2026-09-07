@@ -1,6 +1,7 @@
 using Blasphemous.ModdingAPI;
 using Gameplay.UI.Others.Buttons;
 using Gameplay.UI.Others.MenuLogic;
+using HarmonyLib;
 using Rewired.Integration.UnityUI;
 using System.Collections.Generic;
 using System.Linq;
@@ -118,6 +119,58 @@ internal static class SettingsMenuInjector
             _manualInputActionsPerSecond);
     }
 
+    /// <summary>
+    /// Makes one custom toggle the sole selected visual while clearing the vanilla GAME rows.
+    /// The vanilla option state cannot represent a custom entry, so its stale selection must
+    /// be cleared at the UI boundary when the custom entry receives focus.
+    /// </summary>
+    internal static void SelectCustomToggle(ModToggleOption selected)
+    {
+        if (selected == null)
+            return;
+
+        ClearVanillaGameSelection();
+
+        Transform selection = selected.transform.parent;
+        GameObject current = EventSystem.current != null
+            ? EventSystem.current.currentSelectedGameObject
+            : null;
+        Debug.Log($"[CustomSettings] DIAG custom visual select owner={selected.name} current={(current != null ? current.name : "null")} parent={(selection != null ? selection.name : "null")} frame={Time.frameCount}");
+        if (selection == null)
+        {
+            selected.SetSelected(true);
+            return;
+        }
+
+        foreach (Transform child in selection)
+        {
+            ModToggleOption customToggle = child.GetComponent<ModToggleOption>();
+            if (customToggle != null)
+            {
+                customToggle.SetSelected(customToggle == selected);
+                continue;
+            }
+
+            ClearVanillaSelection(child.gameObject);
+        }
+    }
+
+    private static void ClearVanillaGameSelection()
+    {
+        OptionsWidget widget = Object.FindObjectOfType<OptionsWidget>();
+        var setOptionGameSelected = AccessTools.Method(
+            typeof(OptionsWidget),
+            "SetOptionGameSelected");
+        if (widget == null || setOptionGameSelected == null)
+            return;
+
+        foreach (OptionsWidget.GAME_OPTIONS option in
+                 System.Enum.GetValues(typeof(OptionsWidget.GAME_OPTIONS)))
+        {
+            setOptionGameSelected.Invoke(widget, new object[] { option, false });
+        }
+    }
+
     internal static bool ShouldBypassKeepFocus()
     {
         if (!_gameMenuActive || _navigationController == null || !_navigationController.enabled)
@@ -126,6 +179,18 @@ internal static class SettingsMenuInjector
         EventSystem eventSystem = EventSystem.current;
         return eventSystem != null
             && _navigationController.IsNavigationTarget(eventSystem.currentSelectedGameObject);
+    }
+
+    internal static bool IsCustomSelectionActive()
+    {
+        if (!_gameMenuActive || _navigationController == null || !_navigationController.enabled)
+            return false;
+
+        EventSystem eventSystem = EventSystem.current;
+        GameObject current = eventSystem != null ? eventSystem.currentSelectedGameObject : null;
+        return current != null
+            && _navigationController.IsNavigationTarget(current)
+            && current.GetComponentInParent<ModToggleOption>() != null;
     }
 
     private static ModNavigationController EnsureNavigationController()
@@ -241,7 +306,7 @@ internal static class SettingsMenuInjector
 
         // Locate the template's value text (the vanilla highlightableText, which displays Enabled/Disabled)
         Text valueText = clone.GetComponentInChildren<Text>(true);
-        GameObject selectionObj = FindChildByName(clone.transform, "Selection");
+        GameObject selectionObj = EnsureSelectionImage(clone, template);
         EventsButton button = clone.GetComponentsInChildren<EventsButton>(true).FirstOrDefault();
         if (valueText == null)
         {
@@ -253,6 +318,8 @@ internal static class SettingsMenuInjector
             ModLog.Error($"Failed to inject option={option.Id}: no EventsButton found in toggle template");
             return;
         }
+        if (selectionObj == null)
+            ModLog.Warn($"Custom settings toggle `{option.Id}` has no `Img` selection image");
 
         // Wire up the toggle behaviour. The value text renders the Enabled/Disabled state; the
         // registration title is kept as the cloned object's name and reported in the log, but the
@@ -407,5 +474,48 @@ internal static class SettingsMenuInjector
                 return child.gameObject;
         }
         return null;
+    }
+
+    private static GameObject EnsureSelectionImage(GameObject clone, GameObject template)
+    {
+        GameObject image = FindChildByName(clone.transform, "Img");
+        if (image != null)
+            return image;
+
+        GameObject templateImage = FindChildByName(template.transform, "Img");
+        if (templateImage == null)
+            return null;
+
+        image = Object.Instantiate(templateImage, clone.transform);
+        image.name = "Img";
+        image.transform.SetSiblingIndex(Mathf.Min(
+            templateImage.transform.GetSiblingIndex(),
+            clone.transform.childCount - 1));
+        return image;
+    }
+
+    private static void ClearVanillaSelection(GameObject option)
+    {
+        GameObject image = FindChildByName(option.transform, "Img");
+        bool imageBefore = image != null && image.activeSelf;
+        Text[] texts = option.GetComponentsInChildren<Text>(true);
+        Text highlightableText = option.GetComponentInChildren<Text>(true);
+        string textStateBefore = string.Join(
+            "|",
+            texts.Select(text => $"{text.name}:{text.color}").ToArray());
+
+        MenuButton[] menuButtons = option.GetComponentsInChildren<MenuButton>(true);
+        if (image != null)
+            image.SetActive(false);
+        if (highlightableText != null)
+            highlightableText.color = ModToggleOption.NormalOptionColor;
+
+        foreach (MenuButton menuButton in menuButtons)
+            menuButton.OnDeselect(null);
+
+        string textStateAfter = string.Join(
+            "|",
+            texts.Select(text => $"{text.name}:{text.color}").ToArray());
+        Debug.Log($"[CustomSettings] DIAG vanilla visual option={option.name} img={imageBefore}->{(image != null ? image.activeSelf.ToString() : "none")} menuButtons={menuButtons.Length} textBefore={textStateBefore} textAfter={textStateAfter}");
     }
 }
