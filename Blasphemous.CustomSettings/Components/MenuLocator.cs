@@ -1,8 +1,7 @@
 using Blasphemous.ModdingAPI;
+using Blasphemous.NewbieEltonLibs.Extensions.GameLibs;
 using Gameplay.UI.Others.MenuLogic;
-using System;
 using System.Collections;
-using System.Reflection;
 using UnityEngine;
 
 namespace Blasphemous.CustomSettings.Components;
@@ -58,12 +57,10 @@ internal static class MenuLocator
         if (widget == null)
             return null;
 
-        Type widgetType = typeof(OptionsWidget);
-        FieldInfo field = widgetType.GetField("optionsRoot", BindingFlags.Instance | BindingFlags.NonPublic);
-        if (field == null)
-            return null;
-
-        IDictionary dict = field.GetValue(widget) as IDictionary;
+        IDictionary dict = TraverseUtils.GetValue<IDictionary>(
+            widget,
+            "optionsRoot",
+            TraverseUtils.TraverseAccessType.Field);
         if (dict == null)
             return null;
 

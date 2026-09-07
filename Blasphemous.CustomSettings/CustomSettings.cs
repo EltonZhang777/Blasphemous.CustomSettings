@@ -12,14 +12,6 @@ public class CustomSettings : BlasMod
     internal CustomSettings() : base(ModInfo.MOD_ID, ModInfo.MOD_NAME, ModInfo.MOD_AUTHOR, ModInfo.MOD_VERSION) { }
 
     /// <summary>
-    /// Performs initialization when the mod is loaded
-    /// </summary>
-    protected override void OnInitialize()
-    {
-        // Perform initialization here
-    }
-
-    /// <summary>
     /// Registers example settings entries in DEBUG builds to verify the registration API surface
     /// </summary>
     protected override void OnRegisterServices(ModServiceProvider provider)

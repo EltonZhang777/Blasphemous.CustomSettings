@@ -39,14 +39,14 @@
 
     <!-- Get export directories -->
     <PropertyGroup>
-      <DevFolder>C:\Program Files (x86)\Steam\steamapps\common\Blasphemous\Modding\</DevFolder>
+      <DevFolder Condition="'$(DevFolder)' == ''">C:\Program Files (x86)\Steam\steamapps\common\Blasphemous\Modding\</DevFolder>
       <PublishFolder>$(SolutionDir)\publish\$(TargetName)</PublishFolder>
     </PropertyGroup>
 
     <!-- Export to dev folder -->
-    <Copy SourceFiles="@(Resources)" DestinationFolder="$(DevFolder)\%(RecursiveDir)" SkipUnchangedFiles="true" />
-    <Copy SourceFiles="@(PluginDll)" DestinationFolder="$(DevFolder)\plugins" SkipUnchangedFiles="true" />
-    <Copy SourceFiles="@(DataDlls)" DestinationFolder="$(DevFolder)\data" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="@(Resources)" DestinationFolder="$(DevFolder)\%(RecursiveDir)" SkipUnchangedFiles="true" Condition="Exists('$(DevFolder)')" />
+    <Copy SourceFiles="@(PluginDll)" DestinationFolder="$(DevFolder)\plugins" SkipUnchangedFiles="true" Condition="Exists('$(DevFolder)')" />
+    <Copy SourceFiles="@(DataDlls)" DestinationFolder="$(DevFolder)\data" SkipUnchangedFiles="true" Condition="Exists('$(DevFolder)')" />
 
     <!-- Export to publish folder -->
     <RemoveDir Directories="$(PublishFolder)" />

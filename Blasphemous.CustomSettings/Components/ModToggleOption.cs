@@ -1,4 +1,5 @@
 using Blasphemous.CustomSettings.Components;
+using Blasphemous.NewbieEltonLibs.Extensions.ModdingAPI;
 using Gameplay.UI.Others.Buttons;
 using UnityEngine;
 using UnityEngine.Events;
@@ -109,7 +110,7 @@ internal class ModToggleOption : MonoBehaviour
             SetSelected(true);
         }
 
-        Debug.Log($"[CustomSettings] DIAG sanitized toggle button={button.name} selectedPersistent={selectedPersistentListeners} clickedPersistent={clickedPersistentListeners} selectActionPersistent={selectActionPersistentListeners}");
+        ModLogExtensions.DebugIfDebugBuild($"[CustomSettings] DIAG sanitized toggle button={button.name} selectedPersistent={selectedPersistentListeners} clickedPersistent={clickedPersistentListeners} selectActionPersistent={selectActionPersistentListeners}");
     }
 
     private static int DisablePersistentListeners(UnityEventBase unityEvent)
@@ -144,7 +145,7 @@ internal class ModToggleOption : MonoBehaviour
             return;
 
         _lastSelected = current;
-        Debug.Log($"[CustomSettings] DIAG selected changed to \"{(current != null ? current.name : "null")}\"");
+        ModLogExtensions.DebugIfDebugBuild($"[CustomSettings] DIAG selected changed to \"{(current != null ? current.name : "null")}\"");
     }
 
     private void UpdateValueText()
@@ -178,14 +179,14 @@ internal sealed class ModToggleSelectionRelay : MonoBehaviour, ISelectHandler, I
 
     public void OnSelect(BaseEventData eventData)
     {
-        Debug.Log($"[CustomSettings] DIAG relay select button={gameObject.name} current={(EventSystem.current != null && EventSystem.current.currentSelectedGameObject != null ? EventSystem.current.currentSelectedGameObject.name : "null")} frame={Time.frameCount}");
+        ModLogExtensions.DebugIfDebugBuild($"[CustomSettings] DIAG relay select button={gameObject.name} current={(EventSystem.current != null && EventSystem.current.currentSelectedGameObject != null ? EventSystem.current.currentSelectedGameObject.name : "null")} frame={Time.frameCount}");
         if (_owner != null)
             SettingsMenuInjector.SelectCustomToggle(_owner);
     }
 
     public void OnDeselect(BaseEventData eventData)
     {
-        Debug.Log($"[CustomSettings] DIAG relay deselect button={gameObject.name} current={(EventSystem.current != null && EventSystem.current.currentSelectedGameObject != null ? EventSystem.current.currentSelectedGameObject.name : "null")} frame={Time.frameCount}");
+        ModLogExtensions.DebugIfDebugBuild($"[CustomSettings] DIAG relay deselect button={gameObject.name} current={(EventSystem.current != null && EventSystem.current.currentSelectedGameObject != null ? EventSystem.current.currentSelectedGameObject.name : "null")} frame={Time.frameCount}");
         if (_owner != null)
             _owner.SetSelected(false);
     }

@@ -1,4 +1,5 @@
 using Blasphemous.CustomSettings.Components;
+using Blasphemous.NewbieEltonLibs.Extensions.ModdingAPI;
 using Gameplay.UI;
 using Gameplay.UI.Others;
 using Gameplay.UI.Others.MenuLogic;
@@ -67,7 +68,7 @@ internal static class OptionsWidget_UpdateInputGameOptions_CustomToggle_Patch
 
         EventSystem eventSystem = EventSystem.current;
         GameObject current = eventSystem != null ? eventSystem.currentSelectedGameObject : null;
-        Debug.Log($"[CustomSettings] DIAG horizontal input action=suppressed left={left} optionLastGameSelected={___optionLastGameSelected} current={(current != null ? current.name : "null")} frame={Time.frameCount}");
+        ModLogExtensions.DebugIfDebugBuild($"[CustomSettings] DIAG horizontal input action=suppressed left={left} optionLastGameSelected={___optionLastGameSelected} current={(current != null ? current.name : "null")} frame={Time.frameCount}");
         return false;
     }
 }
@@ -80,6 +81,6 @@ internal static class OptionsWidget_OptionSelectGame_CustomToggle_Patch
     {
         EventSystem eventSystem = EventSystem.current;
         GameObject current = eventSystem != null ? eventSystem.currentSelectedGameObject : null;
-        Debug.Log($"[CustomSettings] DIAG vanilla game selection callback idx={idx} customSelection={SettingsMenuInjector.IsCustomSelectionActive()} current={(current != null ? current.name : "null")} frame={Time.frameCount}");
+        ModLogExtensions.DebugIfDebugBuild($"[CustomSettings] DIAG vanilla game selection callback idx={idx} customSelection={SettingsMenuInjector.IsCustomSelectionActive()} current={(current != null ? current.name : "null")} frame={Time.frameCount}");
     }
 }

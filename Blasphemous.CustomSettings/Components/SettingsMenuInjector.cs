@@ -1,4 +1,6 @@
 using Blasphemous.ModdingAPI;
+using Blasphemous.NewbieEltonLibs.Extensions.GameLibs;
+using Blasphemous.NewbieEltonLibs.Extensions.ModdingAPI;
 using Gameplay.UI.Others.Buttons;
 using Gameplay.UI.Others.MenuLogic;
 using HarmonyLib;
@@ -62,7 +64,7 @@ internal static class SettingsMenuInjector
         }
 
         EnsureNavigationController();
-        ModLog.Info($"DIAG navigation input authority=ModNavigationController customEventInputSuspended={SuspendedCustomInputs.Count} rewiredModules={rewiredModules.Length} rewiredVerticalSuspended={SuspendedVerticalAxes.Count} axis={_manualVerticalAxis}");
+        ModLogExtensions.DebugIfDebugBuild($"DIAG navigation input authority=ModNavigationController customEventInputSuspended={SuspendedCustomInputs.Count} rewiredModules={rewiredModules.Length} rewiredVerticalSuspended={SuspendedVerticalAxes.Count} axis={_manualVerticalAxis}");
     }
 
     /// <summary>
@@ -135,7 +137,7 @@ internal static class SettingsMenuInjector
         GameObject current = EventSystem.current != null
             ? EventSystem.current.currentSelectedGameObject
             : null;
-        Debug.Log($"[CustomSettings] DIAG custom visual select owner={selected.name} current={(current != null ? current.name : "null")} parent={(selection != null ? selection.name : "null")} frame={Time.frameCount}");
+        ModLogExtensions.DebugIfDebugBuild($"[CustomSettings] DIAG custom visual select owner={selected.name} current={(current != null ? current.name : "null")} parent={(selection != null ? selection.name : "null")} frame={Time.frameCount}");
         if (selection == null)
         {
             selected.SetSelected(true);
@@ -202,9 +204,7 @@ internal static class SettingsMenuInjector
         if (_navigationController == null
             || _navigationController.gameObject != eventSystem.gameObject)
         {
-            _navigationController = eventSystem.gameObject.GetComponent<ModNavigationController>();
-            if (_navigationController == null)
-                _navigationController = eventSystem.gameObject.AddComponent<ModNavigationController>();
+            _navigationController = eventSystem.gameObject.GetOrElseAddComponent<ModNavigationController>();
         }
 
         return _navigationController;
@@ -294,7 +294,7 @@ internal static class SettingsMenuInjector
         option.RuntimeUI = null;
 
         // Diagnostic: where did we resolve the game selection to?
-        ModLog.Info($"DIAG selection.name=`{selection.name}` parent=`{(selection.parent != null ? selection.parent.name : "null")}` childCount={selection.childCount} active={selection.gameObject.activeInHierarchy}");
+        ModLogExtensions.DebugIfDebugBuild($"DIAG selection.name=`{selection.name}` parent=`{(selection.parent != null ? selection.parent.name : "null")}` childCount={selection.childCount} active={selection.gameObject.activeInHierarchy}");
 
         // Clone the template option
         GameObject clone = Object.Instantiate(template, selection);
@@ -302,7 +302,7 @@ internal static class SettingsMenuInjector
         option.RuntimeUI = clone;
 
         // Diagnostic: where did the clone land, and is it visible?
-        ModLog.Info($"DIAG injected clone.name=`{clone.name}` parent=`{(clone.transform.parent != null ? clone.transform.parent.name : "null")}` activeSelf={clone.activeSelf} activeInHierarchy={clone.activeInHierarchy} localPos={clone.transform.localPosition} selection.childCount={selection.childCount}");
+        ModLogExtensions.DebugIfDebugBuild($"DIAG injected clone.name=`{clone.name}` parent=`{(clone.transform.parent != null ? clone.transform.parent.name : "null")}` activeSelf={clone.activeSelf} activeInHierarchy={clone.activeInHierarchy} localPos={clone.transform.localPosition} selection.childCount={selection.childCount}");
 
         // Locate the template's value text (the vanilla highlightableText, which displays Enabled/Disabled)
         Text valueText = clone.GetComponentInChildren<Text>(true);
@@ -349,8 +349,8 @@ internal static class SettingsMenuInjector
         // Diagnostic: inspect the layout setup and where the clone ends up.
         Transform controls = selection.childCount >= 4 ? selection.GetChild(3) : null;
         string posOf(Transform t) => t == null ? "n/a" : $"anchored={t.GetComponent<RectTransform>()?.anchoredPosition} local={t.localPosition}";
-        ModLog.Info($"DIAG vlg.enabled={(vlg != null ? vlg.enabled : false)} controls({(controls != null ? controls.name : "null")}) pos={posOf(controls)} childCount={selection.childCount}");
-        ModLog.Info($"DIAG post-layout clone.name=`{clone.name}` localPos={clone.transform.localPosition} anchoredPos={(clone.transform as RectTransform)?.anchoredPosition} sibling={clone.transform.GetSiblingIndex()}/{selection.childCount} activeInHierarchy={clone.activeInHierarchy}");
+        ModLogExtensions.DebugIfDebugBuild($"DIAG vlg.enabled={(vlg != null ? vlg.enabled : false)} controls({(controls != null ? controls.name : "null")}) pos={posOf(controls)} childCount={selection.childCount}");
+        ModLogExtensions.DebugIfDebugBuild($"DIAG post-layout clone.name=`{clone.name}` localPos={clone.transform.localPosition} anchoredPos={(clone.transform as RectTransform)?.anchoredPosition} sibling={clone.transform.GetSiblingIndex()}/{selection.childCount} activeInHierarchy={clone.activeInHierarchy}");
         ModLog.Info($"Injected custom settings toggle `{option.Id}` into game menu");
     }
 
@@ -374,7 +374,7 @@ internal static class SettingsMenuInjector
     /// </summary>
     private static void LinkNavigation(Transform selection)
     {
-        ModLog.Info("[Diag] Linking Navigation...");
+        ModLogExtensions.DebugIfDebugBuild("[Diag] Linking Navigation...");
         if (selection.childCount < 3)
         {
             ModLog.Error($"Failed to link custom settings navigation: selection has {selection.childCount} child(ren)");
@@ -415,7 +415,7 @@ internal static class SettingsMenuInjector
         EventsButton prevButton = previous != null
             ? previous.GetComponentsInChildren<EventsButton>(true).FirstOrDefault()
             : null;
-        ModLog.Info($"DIAG navigation components previous={(previous != null ? previous.name : "null")}:{(previous != null ? previous.GetComponentsInChildren<EventsButton>(true).Length : 0)} first={first.name}:{first.GetComponentsInChildren<EventsButton>(true).Length} customCount={customButtons.Count}");
+        ModLogExtensions.DebugIfDebugBuild($"DIAG navigation components previous={(previous != null ? previous.name : "null")}:{(previous != null ? previous.GetComponentsInChildren<EventsButton>(true).Length : 0)} first={first.name}:{first.GetComponentsInChildren<EventsButton>(true).Length} customCount={customButtons.Count}");
         if (prevButton == null || firstButton == null || customButtons.Count == 0)
         {
             ModLog.Error($"Failed to link custom settings navigation: previousButton={(prevButton != null)} firstButton={(firstButton != null)} customCount={customButtons.Count}");
@@ -431,7 +431,7 @@ internal static class SettingsMenuInjector
 
         SuspendVerticalNavigations(navigationButtons);
 
-        ModLog.Info($"DIAG manual navigation nodes={navigationButtons.Count}");
+        ModLogExtensions.DebugIfDebugBuild($"DIAG manual navigation nodes={navigationButtons.Count}");
         ConfigureManualNavigation(navigationButtons);
     }
 
@@ -516,6 +516,6 @@ internal static class SettingsMenuInjector
         string textStateAfter = string.Join(
             "|",
             texts.Select(text => $"{text.name}:{text.color}").ToArray());
-        Debug.Log($"[CustomSettings] DIAG vanilla visual option={option.name} img={imageBefore}->{(image != null ? image.activeSelf.ToString() : "none")} menuButtons={menuButtons.Length} textBefore={textStateBefore} textAfter={textStateAfter}");
+        ModLogExtensions.DebugIfDebugBuild($"[CustomSettings] DIAG vanilla visual option={option.name} img={imageBefore}->{(image != null ? image.activeSelf.ToString() : "none")} menuButtons={menuButtons.Length} textBefore={textStateBefore} textAfter={textStateAfter}");
     }
 }

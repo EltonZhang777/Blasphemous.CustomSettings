@@ -1,3 +1,4 @@
+using Blasphemous.NewbieEltonLibs.Extensions.ModdingAPI;
 using Gameplay.UI.Others.Buttons;
 using Rewired;
 using System.Collections.Generic;
@@ -47,7 +48,7 @@ internal sealed class ModNavigationController : MonoBehaviour
         ResetInputState();
         enabled = _buttons.Count > 1 && !string.IsNullOrEmpty(_verticalAxis);
 
-        Debug.Log($"[CustomSettings] DIAG manual navigation configured nodes={_buttons.Count} axis={_verticalAxis} repeatDelay={_repeatDelay} inputRate={_inputActionsPerSecond}");
+        ModLogExtensions.DebugIfDebugBuild($"[CustomSettings] DIAG manual navigation configured nodes={_buttons.Count} axis={_verticalAxis} repeatDelay={_repeatDelay} inputRate={_inputActionsPerSecond}");
     }
 
     internal void DisableNavigation()
@@ -154,7 +155,7 @@ internal sealed class ModNavigationController : MonoBehaviour
             return;
 
         eventSystem.SetSelectedGameObject(target.gameObject);
-        Debug.Log($"[CustomSettings] DIAG routed navigation direction={(direction > 0 ? "Down" : "Up")} from={current.name} to={target.name} selected={(eventSystem.currentSelectedGameObject != null ? eventSystem.currentSelectedGameObject.name : "null")} frame={Time.frameCount}");
+        ModLogExtensions.DebugIfDebugBuild($"[CustomSettings] DIAG routed navigation direction={(direction > 0 ? "Down" : "Up")} from={current.name} to={target.name} selected={(eventSystem.currentSelectedGameObject != null ? eventSystem.currentSelectedGameObject.name : "null")} frame={Time.frameCount}");
     }
 
     private void ResetInputState()
