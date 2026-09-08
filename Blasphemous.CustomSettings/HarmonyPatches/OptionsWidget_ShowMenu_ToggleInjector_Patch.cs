@@ -57,7 +57,7 @@ class KeepFocus_Update_ManualNavigationPatch
     }
 }
 
-[HarmonyPatch(typeof(OptionsWidget), "UpdateInputGameOptions", new[] { typeof(bool) })]
+[HarmonyPatch(typeof(OptionsWidget), "UpdateInputGameOptions", [typeof(bool)])]
 internal static class OptionsWidget_UpdateInputGameOptions_CustomToggle_Patch
 {
     [HarmonyPrefix]
@@ -67,20 +67,20 @@ internal static class OptionsWidget_UpdateInputGameOptions_CustomToggle_Patch
             return true;
 
         EventSystem eventSystem = EventSystem.current;
-        GameObject current = eventSystem != null ? eventSystem.currentSelectedGameObject : null;
+        GameObject current = eventSystem?.currentSelectedGameObject;
         ModLogExtensions.DebugIfDebugBuild($"[CustomSettings] DIAG horizontal input action=suppressed left={left} optionLastGameSelected={___optionLastGameSelected} current={(current != null ? current.name : "null")} frame={Time.frameCount}");
         return false;
     }
 }
 
-[HarmonyPatch(typeof(OptionsWidget), "Option_SelectGame", new[] { typeof(int) })]
+[HarmonyPatch(typeof(OptionsWidget), "Option_SelectGame", [typeof(int)])]
 internal static class OptionsWidget_OptionSelectGame_CustomToggle_Patch
 {
     [HarmonyPrefix]
     private static void Prefix(int idx)
     {
         EventSystem eventSystem = EventSystem.current;
-        GameObject current = eventSystem != null ? eventSystem.currentSelectedGameObject : null;
+        GameObject current = eventSystem?.currentSelectedGameObject;
         ModLogExtensions.DebugIfDebugBuild($"[CustomSettings] DIAG vanilla game selection callback idx={idx} customSelection={SettingsMenuInjector.IsCustomSelectionActive()} current={(current != null ? current.name : "null")} frame={Time.frameCount}");
     }
 }

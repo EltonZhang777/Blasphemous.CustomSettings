@@ -17,7 +17,7 @@ internal sealed class ModNavigationController : MonoBehaviour
 {
     private const float NavigationThreshold = 0.3f;
 
-    private readonly List<EventsButton> _buttons = new List<EventsButton>();
+    private readonly List<EventsButton> _buttons = [];
 
     private Player _player;
     private string _verticalAxis;
@@ -71,8 +71,7 @@ internal sealed class ModNavigationController : MonoBehaviour
         if (!ReInput.isReady)
             return;
 
-        if (_player == null)
-            _player = ReInput.players.GetPlayer(0);
+        _player ??= ReInput.players.GetPlayer(0);
         if (_player == null || EventSystem.current == null || string.IsNullOrEmpty(_verticalAxis))
             return;
 

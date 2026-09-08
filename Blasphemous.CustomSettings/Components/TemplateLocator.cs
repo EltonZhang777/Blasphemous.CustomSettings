@@ -62,7 +62,7 @@ internal static class TemplateLocator
 
     internal static Text FindToggleValueText(Transform selection, GameObject template)
     {
-        Transform menuRoot = selection != null ? selection.parent : null;
+        Transform menuRoot = selection?.parent;
         if (menuRoot == null || template == null)
             return null;
 

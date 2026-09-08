@@ -18,12 +18,9 @@ namespace Blasphemous.CustomSettings.Components;
 /// </summary>
 internal static class SettingsMenuInjector
 {
-    private static readonly Dictionary<RewiredStandaloneInputModule, string> SuspendedVerticalAxes
-        = new Dictionary<RewiredStandaloneInputModule, string>();
-    private static readonly Dictionary<CustomEventInput, bool> SuspendedCustomInputs
-        = new Dictionary<CustomEventInput, bool>();
-    private static readonly Dictionary<EventsButton, Navigation> SuspendedVerticalNavigations
-        = new Dictionary<EventsButton, Navigation>();
+    private static readonly Dictionary<RewiredStandaloneInputModule, string> SuspendedVerticalAxes = [];
+    private static readonly Dictionary<CustomEventInput, bool> SuspendedCustomInputs = [];
+    private static readonly Dictionary<EventsButton, Navigation> SuspendedVerticalNavigations = [];
 
     private static ModNavigationController _navigationController;
     private static bool _gameMenuActive;
@@ -73,8 +70,7 @@ internal static class SettingsMenuInjector
     internal static void ExitGameMenu()
     {
         _gameMenuActive = false;
-        if (_navigationController != null)
-            _navigationController.DisableNavigation();
+        _navigationController?.DisableNavigation();
         RestoreVerticalNavigations();
         RestoreVerticalAxes();
         RestoreCustomInputs();
@@ -134,9 +130,7 @@ internal static class SettingsMenuInjector
         ClearVanillaGameSelection();
 
         Transform selection = selected.transform.parent;
-        GameObject current = EventSystem.current != null
-            ? EventSystem.current.currentSelectedGameObject
-            : null;
+        GameObject current = EventSystem.current?.currentSelectedGameObject;
         ModLogExtensions.DebugIfDebugBuild($"[CustomSettings] DIAG custom visual select owner={selected.name} current={(current != null ? current.name : "null")} parent={(selection != null ? selection.name : "null")} frame={Time.frameCount}");
         if (selection == null)
         {
@@ -169,7 +163,7 @@ internal static class SettingsMenuInjector
         foreach (OptionsWidget.GAME_OPTIONS option in
                  System.Enum.GetValues(typeof(OptionsWidget.GAME_OPTIONS)))
         {
-            setOptionGameSelected.Invoke(widget, new object[] { option, false });
+            setOptionGameSelected.Invoke(widget, [option, false]);
         }
     }
 
@@ -189,7 +183,7 @@ internal static class SettingsMenuInjector
             return false;
 
         EventSystem eventSystem = EventSystem.current;
-        GameObject current = eventSystem != null ? eventSystem.currentSelectedGameObject : null;
+        GameObject current = eventSystem?.currentSelectedGameObject;
         return current != null
             && _navigationController.IsNavigationTarget(current)
             && current.GetComponentInParent<ModToggleOption>() != null;
@@ -214,8 +208,7 @@ internal static class SettingsMenuInjector
     {
         foreach (KeyValuePair<RewiredStandaloneInputModule, string> pair in SuspendedVerticalAxes.ToList())
         {
-            if (pair.Key != null)
-                pair.Key.verticalAxis = pair.Value;
+            pair.Key?.verticalAxis = pair.Value;
             SuspendedVerticalAxes.Remove(pair.Key);
         }
     }
@@ -224,8 +217,7 @@ internal static class SettingsMenuInjector
     {
         foreach (KeyValuePair<CustomEventInput, bool> pair in SuspendedCustomInputs.ToList())
         {
-            if (pair.Key != null)
-                pair.Key.enabled = pair.Value;
+            pair.Key?.enabled = pair.Value;
             SuspendedCustomInputs.Remove(pair.Key);
         }
     }
@@ -251,9 +243,7 @@ internal static class SettingsMenuInjector
     /// </summary>
     internal static void InjectAll()
     {
-        List<SettingsOption> options = SettingsMenuRegister.RegisteredOptions
-            .Where(x => x.Type == OptionType.Toggle)
-            .ToList();
+        List<SettingsOption> options = [.. SettingsMenuRegister.RegisteredOptions.Where(x => x.Type == OptionType.Toggle)];
         if (options.Count == 0)
             return;
 
@@ -283,8 +273,7 @@ internal static class SettingsMenuInjector
             option.RuntimeUI = existing;
             ModToggleOption existingToggle = existing.GetComponent<ModToggleOption>();
             EventsButton existingButton = existing.GetComponentsInChildren<EventsButton>(true).FirstOrDefault();
-            if (existingToggle != null)
-                existingToggle.AttachButton(existingButton);
+            existingToggle?.AttachButton(existingButton);
             ModLog.Info($"Reusing injected custom settings toggle `{option.Id}` in current game menu");
             return;
         }
@@ -305,7 +294,7 @@ internal static class SettingsMenuInjector
 
         // Locate the template's value text (the vanilla highlightableText, which displays Enabled/Disabled)
         EventsButton button = clone.GetComponentsInChildren<EventsButton>(true).FirstOrDefault();
-        MenuButton menuButton = button != null ? button.GetComponent<MenuButton>() : null;
+        MenuButton menuButton = button?.GetComponent<MenuButton>();
         Text valueTemplate = TemplateLocator.FindToggleValueText(selection, template);
         Text valueText = null;
         GameObject valueClone = null;
@@ -371,11 +360,10 @@ internal static class SettingsMenuInjector
 
         // Diagnostic: inspect the layout setup and where the clone ends up.
         Transform controls = selection.childCount >= 4 ? selection.GetChild(3) : null;
-        string posOf(Transform t) => t == null ? "n/a" : $"anchored={t.GetComponent<RectTransform>()?.anchoredPosition} local={t.localPosition}";
-        ModLogExtensions.DebugIfDebugBuild($"DIAG vlg.enabled={(vlg != null ? vlg.enabled : false)} controls({(controls != null ? controls.name : "null")}) pos={posOf(controls)} childCount={selection.childCount}");
+        static string posOf(Transform t) => t == null ? "n/a" : $"anchored={t.GetComponent<RectTransform>()?.anchoredPosition} local={t.localPosition}";
+        ModLogExtensions.DebugIfDebugBuild($"DIAG vlg.enabled={(vlg != null && vlg.enabled)} controls({(controls != null ? controls.name : "null")}) pos={posOf(controls)} childCount={selection.childCount}");
         ModLogExtensions.DebugIfDebugBuild($"DIAG post-layout clone.name=`{clone.name}` localPos={clone.transform.localPosition} anchoredPos={(clone.transform as RectTransform)?.anchoredPosition} sibling={clone.transform.GetSiblingIndex()}/{selection.childCount} activeInHierarchy={clone.activeInHierarchy}");
-        if (valueClone != null)
-            valueClone.transform.position = titleText.transform.position + valueOffset;
+        valueClone?.transform.position = titleText.transform.position + valueOffset;
         ModLog.Info($"Injected custom settings toggle `{option.Id}` into game menu");
     }
 
@@ -445,9 +433,7 @@ internal static class SettingsMenuInjector
             }
         }
 
-        EventsButton prevButton = previous != null
-            ? previous.GetComponentsInChildren<EventsButton>(true).FirstOrDefault()
-            : null;
+        EventsButton prevButton = previous?.GetComponentsInChildren<EventsButton>(true).FirstOrDefault();
         ModLogExtensions.DebugIfDebugBuild($"DIAG navigation components previous={(previous != null ? previous.name : "null")}:{(previous != null ? previous.GetComponentsInChildren<EventsButton>(true).Length : 0)} first={first.name}:{first.GetComponentsInChildren<EventsButton>(true).Length} customCount={customButtons.Count}");
         if (prevButton == null || firstButton == null || customButtons.Count == 0)
         {
@@ -493,8 +479,7 @@ internal static class SettingsMenuInjector
     {
         foreach (KeyValuePair<EventsButton, Navigation> pair in SuspendedVerticalNavigations.ToList())
         {
-            if (pair.Key != null)
-                pair.Key.navigation = pair.Value;
+            pair.Key?.navigation = pair.Value;
             SuspendedVerticalNavigations.Remove(pair.Key);
         }
     }
@@ -535,20 +520,18 @@ internal static class SettingsMenuInjector
         Text highlightableText = option.GetComponentInChildren<Text>(true);
         string textStateBefore = string.Join(
             "|",
-            texts.Select(text => $"{text.name}:{text.color}").ToArray());
+            [.. texts.Select(text => $"{text.name}:{text.color}")]);
 
         MenuButton[] menuButtons = option.GetComponentsInChildren<MenuButton>(true);
-        if (image != null)
-            image.SetActive(false);
-        if (highlightableText != null)
-            highlightableText.color = ModToggleOption.NormalOptionColor;
+        image?.SetActive(false);
+        highlightableText?.color = ModToggleOption.NormalOptionColor;
 
         foreach (MenuButton menuButton in menuButtons)
             menuButton.OnDeselect(null);
 
         string textStateAfter = string.Join(
             "|",
-            texts.Select(text => $"{text.name}:{text.color}").ToArray());
+            [.. texts.Select(text => $"{text.name}:{text.color}")]);
         ModLogExtensions.DebugIfDebugBuild($"[CustomSettings] DIAG vanilla visual option={option.name} img={imageBefore}->{(image != null ? image.activeSelf.ToString() : "none")} menuButtons={menuButtons.Length} textBefore={textStateBefore} textAfter={textStateAfter}");
     }
 }

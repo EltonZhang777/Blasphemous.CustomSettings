@@ -9,8 +9,8 @@ namespace Blasphemous.CustomSettings.Components;
 /// </summary>
 public static class SettingsMenuRegister
 {
-    internal static readonly List<SettingsOption> registeredOptions = new();
-    internal static readonly List<SettingsTab> registeredTabs = new();
+    internal static readonly List<SettingsOption> registeredOptions = [];
+    internal static readonly List<SettingsTab> registeredTabs = [];
 
     /// <summary>
     /// All registered custom settings options

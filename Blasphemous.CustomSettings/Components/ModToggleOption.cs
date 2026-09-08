@@ -43,8 +43,7 @@ internal class ModToggleOption : MonoBehaviour
 
         owner.CurrentValue = _value;
         IsSelected = false;
-        if (_titleText != null)
-            _titleText.text = owner.Title ?? string.Empty;
+        _titleText?.text = owner.Title ?? string.Empty;
         UpdateValueText();
     }
 
@@ -87,8 +86,7 @@ internal class ModToggleOption : MonoBehaviour
         if (_button == button)
             return;
 
-        if (_button != null)
-            _button.onClick.RemoveListener(ToggleValue);
+        _button?.onClick.RemoveListener(ToggleValue);
         _button = button;
 
         int selectedPersistentListeners = DisablePersistentListeners(button.onSelected);
@@ -103,9 +101,7 @@ internal class ModToggleOption : MonoBehaviour
         }
         button.onClick.AddListener(ToggleValue);
 
-        ModToggleSelectionRelay relay = button.GetComponent<ModToggleSelectionRelay>();
-        if (relay == null)
-            relay = button.gameObject.AddComponent<ModToggleSelectionRelay>();
+        ModToggleSelectionRelay relay = button.GetComponent<ModToggleSelectionRelay>() ?? button.gameObject.AddComponent<ModToggleSelectionRelay>();
         relay.Bind(this);
 
         if (EventSystem.current != null
@@ -134,8 +130,7 @@ internal class ModToggleOption : MonoBehaviour
     internal void SetSelected(bool selected)
     {
         IsSelected = selected;
-        if (_owner != null)
-            _owner.IsSelected = selected;
+        _owner?.IsSelected = selected;
     }
 
     private void Update()
@@ -154,20 +149,16 @@ internal class ModToggleOption : MonoBehaviour
 
     private void UpdateValueText()
     {
-        if (_valueText != null)
-            _valueText.text = _value ? "ENABLED" : "DISABLED";
+        _valueText?.text = _value ? "ENABLED" : "DISABLED";
     }
 
     private void RenderSelection()
     {
-        if (_selection != null)
-            _selection.SetActive(_selected);
+        _selection?.SetActive(_selected);
 
         Color color = _selected ? HighlightedOptionColor : NormalOptionColor;
-        if (_highlightableText != null)
-            _highlightableText.color = color;
-        if (_titleText != null)
-            _titleText.color = color;
+        _highlightableText?.color = color;
+        _titleText?.color = color;
     }
 }
 
@@ -193,7 +184,6 @@ internal sealed class ModToggleSelectionRelay : MonoBehaviour, ISelectHandler, I
     public void OnDeselect(BaseEventData eventData)
     {
         ModLogExtensions.DebugIfDebugBuild($"[CustomSettings] DIAG relay deselect button={gameObject.name} current={(EventSystem.current != null && EventSystem.current.currentSelectedGameObject != null ? EventSystem.current.currentSelectedGameObject.name : "null")} frame={Time.frameCount}");
-        if (_owner != null)
-            _owner.SetSelected(false);
+        _owner?.SetSelected(false);
     }
 }
