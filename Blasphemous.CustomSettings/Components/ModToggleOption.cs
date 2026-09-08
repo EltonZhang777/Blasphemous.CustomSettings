@@ -22,6 +22,7 @@ internal class ModToggleOption : MonoBehaviour
     private Text _valueText;
     private GameObject _selection;
     private Text _highlightableText;
+    private Text _titleText;
     private EventsButton _button;
 
     private bool _value;
@@ -31,16 +32,19 @@ internal class ModToggleOption : MonoBehaviour
     /// <summary>
     /// Initializes this toggle from its owner option and the template's visual parts.
     /// </summary>
-    internal void Initialize(SettingsOption owner, Text valueText, GameObject selection, Text highlightableText)
+    internal void Initialize(SettingsOption owner, Text valueText, GameObject selection, Text highlightableText, Text titleText)
     {
         _owner = owner;
         _valueText = valueText;
         _selection = selection;
         _highlightableText = highlightableText;
+        _titleText = titleText;
         _value = owner.DefaultValue is bool b && b;
 
         owner.CurrentValue = _value;
         IsSelected = false;
+        if (_titleText != null)
+            _titleText.text = owner.Title ?? string.Empty;
         UpdateValueText();
     }
 
@@ -162,6 +166,8 @@ internal class ModToggleOption : MonoBehaviour
         Color color = _selected ? HighlightedOptionColor : NormalOptionColor;
         if (_highlightableText != null)
             _highlightableText.color = color;
+        if (_titleText != null)
+            _titleText.color = color;
     }
 }
 

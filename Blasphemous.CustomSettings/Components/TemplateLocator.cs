@@ -25,10 +25,10 @@ internal static class TemplateLocator
             return null;
         }
 
-        // Channel 1: find the option whose text renders an Enabled/Disabled state
+        // Channel 1: find the option whose paired value object renders an Enabled/Disabled state.
         foreach (Transform child in selection)
         {
-            if (IsEnabledDisabledText(child))
+            if (FindToggleValueText(selection, child.gameObject) != null)
             {
                 ModLog.Info($"Located vanilla toggle template: {child.name}");
                 return child.gameObject;
@@ -47,15 +47,41 @@ internal static class TemplateLocator
         return null;
     }
 
-    private static bool IsEnabledDisabledText(Transform option)
+    internal static Text FindToggleValueText(GameObject option)
     {
+        if (option == null)
+            return null;
+
         foreach (Text text in option.GetComponentsInChildren<Text>(true))
         {
-            string value = text.text ?? string.Empty;
-            string upper = value.Trim().ToUpperInvariant();
-            if (upper == "ENABLED" || upper == "DISABLED")
-                return true;
+            if (IsEnabledDisabledText(text))
+                return text;
         }
-        return false;
+        return null;
+    }
+
+    internal static Text FindToggleValueText(Transform selection, GameObject template)
+    {
+        Transform menuRoot = selection != null ? selection.parent : null;
+        if (menuRoot == null || template == null)
+            return null;
+
+        foreach (Text text in menuRoot.GetComponentsInChildren<Text>(true))
+        {
+            if (text.transform.IsChildOf(selection)
+                || text.transform.parent == null
+                || text.transform.parent.name != template.name)
+                continue;
+            if (IsEnabledDisabledText(text))
+                return text;
+        }
+        return null;
+    }
+
+    private static bool IsEnabledDisabledText(Text text)
+    {
+        string value = text != null ? text.text ?? string.Empty : string.Empty;
+        string upper = value.Trim().ToUpperInvariant();
+        return upper == "ENABLED" || upper == "DISABLED";
     }
 }

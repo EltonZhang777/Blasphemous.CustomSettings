@@ -299,34 +299,57 @@ internal static class SettingsMenuInjector
         // Clone the template option
         GameObject clone = Object.Instantiate(template, selection);
         clone.name = $"ModToggle {option.Id}";
-        option.RuntimeUI = clone;
 
         // Diagnostic: where did the clone land, and is it visible?
         ModLogExtensions.DebugIfDebugBuild($"DIAG injected clone.name=`{clone.name}` parent=`{(clone.transform.parent != null ? clone.transform.parent.name : "null")}` activeSelf={clone.activeSelf} activeInHierarchy={clone.activeInHierarchy} localPos={clone.transform.localPosition} selection.childCount={selection.childCount}");
 
         // Locate the template's value text (the vanilla highlightableText, which displays Enabled/Disabled)
-        Text valueText = clone.GetComponentInChildren<Text>(true);
-        GameObject selectionObj = EnsureSelectionImage(clone, template);
         EventsButton button = clone.GetComponentsInChildren<EventsButton>(true).FirstOrDefault();
+        MenuButton menuButton = button != null ? button.GetComponent<MenuButton>() : null;
+        Text valueTemplate = TemplateLocator.FindToggleValueText(selection, template);
+        Text valueText = null;
+        GameObject valueClone = null;
+        Vector3 valueOffset = Vector3.zero;
+        if (valueTemplate != null)
+        {
+            Text titleTemplate = clone.GetComponentsInChildren<Text>(true).FirstOrDefault();
+            if (titleTemplate != null)
+                valueOffset = valueTemplate.transform.position - titleTemplate.transform.position;
+
+            valueClone = Object.Instantiate(valueTemplate.gameObject);
+            valueClone.name = $"ModToggle {option.Id} Value";
+            valueClone.transform.SetParent(selection.parent, true);
+            valueText = valueClone.GetComponent<Text>();
+        }
+        if (valueText == null)
+            valueText = TemplateLocator.FindToggleValueText(clone);
+        if (valueText == null && button != null)
+            valueText = menuButton != null ? menuButton.buttonText : button.GetComponentInChildren<Text>(true);
+        Text titleText = clone.GetComponentsInChildren<Text>(true)
+            .FirstOrDefault(text => text != valueText);
+        GameObject selectionObj = EnsureSelectionImage(clone, template);
         if (valueText == null)
         {
-            ModLog.Error($"Failed to inject `{option.Id}`: no text found in toggle template");
+            AbortInjection(option, clone, $"Failed to inject `{option.Id}`: no toggle value text found in template");
+            return;
+        }
+        if (titleText == null)
+        {
+            AbortInjection(option, clone, $"Failed to inject `{option.Id}`: no title text found in toggle template");
             return;
         }
         if (button == null)
         {
-            ModLog.Error($"Failed to inject option={option.Id}: no EventsButton found in toggle template");
+            AbortInjection(option, clone, $"Failed to inject option={option.Id}: no EventsButton found in toggle template");
             return;
         }
         if (selectionObj == null)
             ModLog.Warn($"Custom settings toggle `{option.Id}` has no `Img` selection image");
 
-        // Wire up the toggle behaviour. The value text renders the Enabled/Disabled state; the
-        // registration title is kept as the cloned object's name and reported in the log, but the
-        // vanilla template's own title label is left untouched (the exact title-text layout of the
-        // vanilla option is not yet verified in the scene, so we avoid overwriting the value text).
+        // Wire up the toggle behaviour. The title is rendered on the left and the value on the right.
+        option.RuntimeUI = clone;
         ModToggleOption toggle = clone.AddComponent<ModToggleOption>();
-        toggle.Initialize(option, valueText, selectionObj, valueText);
+        toggle.Initialize(option, valueText, selectionObj, valueText, titleText);
         toggle.AttachButton(button);
 
         // The Selection container's VerticalLayoutGroup is disabled at runtime (it is an editor-time
@@ -351,7 +374,17 @@ internal static class SettingsMenuInjector
         string posOf(Transform t) => t == null ? "n/a" : $"anchored={t.GetComponent<RectTransform>()?.anchoredPosition} local={t.localPosition}";
         ModLogExtensions.DebugIfDebugBuild($"DIAG vlg.enabled={(vlg != null ? vlg.enabled : false)} controls({(controls != null ? controls.name : "null")}) pos={posOf(controls)} childCount={selection.childCount}");
         ModLogExtensions.DebugIfDebugBuild($"DIAG post-layout clone.name=`{clone.name}` localPos={clone.transform.localPosition} anchoredPos={(clone.transform as RectTransform)?.anchoredPosition} sibling={clone.transform.GetSiblingIndex()}/{selection.childCount} activeInHierarchy={clone.activeInHierarchy}");
+        if (valueClone != null)
+            valueClone.transform.position = titleText.transform.position + valueOffset;
         ModLog.Info($"Injected custom settings toggle `{option.Id}` into game menu");
+    }
+
+    private static void AbortInjection(SettingsOption option, GameObject clone, string message)
+    {
+        clone.transform.SetParent(null);
+        Object.Destroy(clone);
+        option.RuntimeUI = null;
+        ModLog.Error(message);
     }
 
     private static GameObject FindRuntimeClone(SettingsOption option, Transform selection)
