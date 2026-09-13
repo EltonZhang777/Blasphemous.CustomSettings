@@ -69,7 +69,12 @@ internal static class SettingsMenuInjector
     /// </summary>
     internal static void ExitGameMenu()
     {
+        bool wasActive = _gameMenuActive;
         _gameMenuActive = false;
+
+        if (wasActive)
+            NotifyCloseCallbacks();
+
         _navigationController?.DisableNavigation();
         RestoreVerticalNavigations();
         RestoreVerticalAxes();
@@ -78,6 +83,18 @@ internal static class SettingsMenuInjector
         _manualRepeatDelay = 0f;
         _manualInputActionsPerSecond = 10f;
         _nextCustomInputScanTime = 0f;
+    }
+
+    private static void NotifyCloseCallbacks()
+    {
+        foreach (SettingsOption option in SettingsMenuRegister.RegisteredOptions
+                     .Where(x => x.Type == OptionType.Toggle)
+                     .ToList())
+        {
+            GameObject runtimeUI = option.RuntimeUI;
+            if (runtimeUI != null)
+                runtimeUI.GetComponent<ModToggleOption>()?.NotifyClose();
+        }
     }
 
     /// <summary>

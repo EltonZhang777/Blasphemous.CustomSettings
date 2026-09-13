@@ -18,8 +18,20 @@ public class CustomSettings : BlasMod
     {
 #if DEBUG
         // Example registrations used to verify the registration API surface
+        SettingsOption debugToggle = new SettingsOption
+        {
+            Id = "debug_toggle",
+            Title = "Debug Toggle",
+            Type = OptionType.Toggle,
+            DefaultValue = false
+        };
+        debugToggle.OnChange = value =>
+            ModLog.Debug($"[CustomSettings] DEBUG debug_toggle OnChange payload={value} GetValue<bool>()={debugToggle.GetValue<bool>()}");
+        debugToggle.OnClose = () =>
+            ModLog.Debug($"[CustomSettings] DEBUG debug_toggle OnClose GetValue<bool>()={debugToggle.GetValue<bool>()}");
+
         provider.RegisterCustomSettingsOption(
-            new SettingsOption { Id = "debug_toggle", Title = "Debug Toggle", Type = OptionType.Toggle, DefaultValue = false },
+            debugToggle,
             SettingsMenuTarget.Vanilla(VanillaMenuTarget.Game));
         provider.RegisterCustomSettingsTab(
             new SettingsTab { Id = "debug_tab", Title = "Debug Tab" },
