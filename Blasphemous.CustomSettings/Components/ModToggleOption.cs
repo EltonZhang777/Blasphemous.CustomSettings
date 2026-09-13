@@ -1,6 +1,7 @@
 using Blasphemous.CustomSettings.Components;
 using Blasphemous.NewbieEltonLibs.Extensions.ModdingAPI;
 using Gameplay.UI.Others.Buttons;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Events;
 using UnityEngine.EventSystems;
@@ -9,7 +10,7 @@ using UnityEngine.UI;
 namespace Blasphemous.CustomSettings.Components;
 
 /// <summary>
-/// Runtime behaviour for a cloned custom toggle option.
+/// Runtime behaviour for a cloned custom settings option.
 /// Owns the current value, renders it on the option text, handles selection highlight,
 /// and fires the owner option's <c>OnChange</c>/<c>OnClose</c> callbacks.
 /// </summary>
@@ -25,12 +26,13 @@ internal class ModToggleOption : MonoBehaviour
     private Text _titleText;
     private EventsButton _button;
 
-    private bool _value;
+    private bool _toggleValue;
+    private int _intValue;
     private bool _selected;
     private GameObject _lastSelected;
 
     /// <summary>
-    /// Initializes this toggle from its owner option and the template's visual parts.
+    /// Initializes this option from its owner and the template's visual parts.
     /// </summary>
     internal void Initialize(SettingsOption owner, Text valueText, GameObject selection, Text highlightableText, Text titleText)
     {
@@ -39,9 +41,26 @@ internal class ModToggleOption : MonoBehaviour
         _selection = selection;
         _highlightableText = highlightableText;
         _titleText = titleText;
-        _value = owner.DefaultValue is bool b && b;
+        if (owner.Type == OptionType.Toggle)
+        {
+            _toggleValue = owner.DefaultValue is bool b && b;
+            owner.CurrentValue = _toggleValue;
+        }
+        else if (owner.Type == OptionType.Arrow)
+        {
+            _intValue = NormalizeArrowValue(owner.DefaultValue is int value ? value : 0, owner.Choices);
+            owner.CurrentValue = _intValue;
+        }
+        else if (owner.DefaultValue is int value)
+        {
+            _intValue = value;
+            owner.CurrentValue = _intValue;
+        }
+        else
+        {
+            owner.CurrentValue = null;
+        }
 
-        owner.CurrentValue = _value;
         IsSelected = false;
         _titleText?.text = owner.Title ?? string.Empty;
         UpdateValueText();
@@ -61,14 +80,53 @@ internal class ModToggleOption : MonoBehaviour
     }
 
     /// <summary>
-    /// Toggles the current value, fires the owner's <c>OnChange</c>.
+    /// Changes the current value in response to a left/right input.
     /// </summary>
-    internal void ToggleValue()
+    internal void ChangeValue(bool left)
     {
-        _value = !_value;
-        _owner.CurrentValue = _value;
+        if (_owner == null)
+            return;
+
+        switch (_owner.Type)
+        {
+            case OptionType.Toggle:
+                _toggleValue = !_toggleValue;
+                _owner.CurrentValue = _toggleValue;
+                break;
+            case OptionType.Arrow:
+                if (_owner.Choices == null || _owner.Choices.Count == 0)
+                    return;
+                _intValue = NormalizeArrowValue(_intValue + (left ? -1 : 1), _owner.Choices);
+                _owner.CurrentValue = _intValue;
+                break;
+            case OptionType.Text:
+                if (!(_owner.DefaultValue is int))
+                    return;
+                _intValue += left ? -1 : 1;
+                _owner.CurrentValue = _intValue;
+                break;
+        }
+
         UpdateValueText();
-        _owner.OnChange?.Invoke(_value);
+        _owner.OnChange?.Invoke(_owner.CurrentValue);
+    }
+
+    /// <summary>
+    /// Handles submit/click. Toggles change on submit; text action options invoke their callback without a value.
+    /// </summary>
+    internal void Activate()
+    {
+        if (_owner == null)
+            return;
+
+        if (_owner.Type == OptionType.Text && !(_owner.DefaultValue is int))
+        {
+            _owner.OnChange?.Invoke(null);
+            return;
+        }
+
+        if (_owner.Type == OptionType.Toggle)
+            ChangeValue(false);
     }
 
     /// <summary>
@@ -77,7 +135,7 @@ internal class ModToggleOption : MonoBehaviour
     internal void NotifyClose() => _owner.OnClose?.Invoke();
 
     /// <summary>
-    /// Disables callbacks copied from the vanilla template and binds this toggle's click action.
+    /// Disables callbacks copied from the vanilla template and binds this option's click action.
     /// </summary>
     internal void AttachButton(EventsButton button)
     {
@@ -86,7 +144,7 @@ internal class ModToggleOption : MonoBehaviour
         if (_button == button)
             return;
 
-        _button?.onClick.RemoveListener(ToggleValue);
+        _button?.onClick.RemoveListener(Activate);
         _button = button;
 
         int selectedPersistentListeners = DisablePersistentListeners(button.onSelected);
@@ -99,7 +157,7 @@ internal class ModToggleOption : MonoBehaviour
             menuButton.textColorDefault = NormalOptionColor;
             menuButton.textColorHighlighted = HighlightedOptionColor;
         }
-        button.onClick.AddListener(ToggleValue);
+        button.onClick.AddListener(Activate);
 
         ModToggleSelectionRelay relay = button.GetComponent<ModToggleSelectionRelay>() ?? button.gameObject.AddComponent<ModToggleSelectionRelay>();
         relay.Bind(this);
@@ -110,7 +168,7 @@ internal class ModToggleOption : MonoBehaviour
             SetSelected(true);
         }
 
-        ModLogExtensions.DebugIfDebugBuild($"[CustomSettings] DIAG sanitized toggle button={button.name} selectedPersistent={selectedPersistentListeners} clickedPersistent={clickedPersistentListeners} selectActionPersistent={selectActionPersistentListeners}");
+        ModLogExtensions.DebugIfDebugBuild($"[CustomSettings] DIAG sanitized option button={button.name} type={_owner?.Type} selectedPersistent={selectedPersistentListeners} clickedPersistent={clickedPersistentListeners} selectActionPersistent={selectActionPersistentListeners}");
     }
 
     private static int DisablePersistentListeners(UnityEventBase unityEvent)
@@ -149,7 +207,34 @@ internal class ModToggleOption : MonoBehaviour
 
     private void UpdateValueText()
     {
-        _valueText?.text = _value ? "ENABLED" : "DISABLED";
+        if (_valueText == null || _owner == null)
+            return;
+
+        switch (_owner.Type)
+        {
+            case OptionType.Toggle:
+                _valueText.text = _toggleValue ? "ENABLED" : "DISABLED";
+                break;
+            case OptionType.Arrow:
+                _valueText.text = _owner.Choices != null
+                    && _intValue >= 0
+                    && _intValue < _owner.Choices.Count
+                    ? _owner.Choices[_intValue] ?? string.Empty
+                    : string.Empty;
+                break;
+            case OptionType.Text:
+                _valueText.text = _owner.DefaultValue is int ? _intValue.ToString() : string.Empty;
+                break;
+        }
+    }
+
+    private static int NormalizeArrowValue(int value, IList<string> choices)
+    {
+        if (choices == null || choices.Count == 0)
+            return 0;
+
+        value %= choices.Count;
+        return value < 0 ? value + choices.Count : value;
     }
 
     private void RenderSelection()
@@ -178,7 +263,7 @@ internal sealed class ModToggleSelectionRelay : MonoBehaviour, ISelectHandler, I
     {
         ModLogExtensions.DebugIfDebugBuild($"[CustomSettings] DIAG relay select button={gameObject.name} current={(EventSystem.current != null && EventSystem.current.currentSelectedGameObject != null ? EventSystem.current.currentSelectedGameObject.name : "null")} frame={Time.frameCount}");
         if (_owner != null)
-            SettingsMenuInjector.SelectCustomToggle(_owner);
+            SettingsMenuInjector.SelectCustomOption(_owner);
     }
 
     public void OnDeselect(BaseEventData eventData)

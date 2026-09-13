@@ -51,6 +51,11 @@ public sealed class SettingsOption
     public object DefaultValue { get; set; }
 
     /// <summary>
+    /// Optional runtime UI template. When omitted, the injector clones the matching vanilla GAME option.
+    /// </summary>
+    public Transform Template { get; set; }
+
+    /// <summary>
     /// Called whenever the value changes (payload is the new value, e.g. boxed bool? or int?)
     /// </summary>
     public Action<object> OnChange { get; set; }

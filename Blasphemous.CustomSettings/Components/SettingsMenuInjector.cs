@@ -88,7 +88,6 @@ internal static class SettingsMenuInjector
     private static void NotifyCloseCallbacks()
     {
         foreach (SettingsOption option in SettingsMenuRegister.RegisteredOptions
-                     .Where(x => x.Type == OptionType.Toggle)
                      .ToList())
         {
             GameObject runtimeUI = option.RuntimeUI;
@@ -139,7 +138,7 @@ internal static class SettingsMenuInjector
     /// The vanilla option state cannot represent a custom entry, so its stale selection must
     /// be cleared at the UI boundary when the custom entry receives focus.
     /// </summary>
-    internal static void SelectCustomToggle(ModToggleOption selected)
+    internal static void SelectCustomOption(ModToggleOption selected)
     {
         if (selected == null)
             return;
@@ -206,6 +205,13 @@ internal static class SettingsMenuInjector
             && current.GetComponentInParent<ModToggleOption>() != null;
     }
 
+    internal static void ChangeSelectedValue(bool left)
+    {
+        EventSystem eventSystem = EventSystem.current;
+        ModToggleOption selected = eventSystem?.currentSelectedGameObject?.GetComponentInParent<ModToggleOption>();
+        selected?.ChangeValue(left);
+    }
+
     private static ModNavigationController EnsureNavigationController()
     {
         EventSystem eventSystem = EventSystem.current;
@@ -256,11 +262,11 @@ internal static class SettingsMenuInjector
 
     /// <summary>
     /// Injects all registered custom options into the vanilla settings menus (called on level load when the menu is present).
-    /// Currently injects Toggle options into the GAME submenu (issue #3 scope).
+    /// Injects all registered option types into the GAME submenu.
     /// </summary>
     internal static void InjectAll()
     {
-        List<SettingsOption> options = [.. SettingsMenuRegister.RegisteredOptions.Where(x => x.Type == OptionType.Toggle)];
+        List<SettingsOption> options = [.. SettingsMenuRegister.RegisteredOptions];
         if (options.Count == 0)
             return;
 
@@ -268,13 +274,28 @@ internal static class SettingsMenuInjector
         if (selection == null)
             return;
 
-        GameObject template = TemplateLocator.FindToggleTemplate();
-        if (template == null)
+        GameObject toggleTemplate = TemplateLocator.FindToggleTemplate();
+        if (toggleTemplate == null)
             return;
+
+        Text defaultValueTemplate = TemplateLocator.FindDefaultValueText(selection, toggleTemplate);
+        TemplateLocator.AttachGameOptionValueTexts(selection);
 
         foreach (SettingsOption option in options)
         {
-            InjectToggleIntoGame(option, selection, template);
+            GameObject template = option.Template != null
+                ? option.Template.gameObject
+                : TemplateLocator.FindTemplate(option.Type);
+            if (template == null)
+            {
+                ModLog.Error($"Failed to inject custom settings option `{option.Id}`: no {option.Type} template found");
+                continue;
+            }
+
+            if (option.Template != null)
+                ModLog.Info($"Using custom template for custom settings option `{option.Id}`: {template.name}");
+
+            InjectOptionIntoGame(option, selection, template, defaultValueTemplate);
         }
 
         // Reconcile the complete ring on every GAME menu open. This also repairs the ring after
@@ -282,7 +303,7 @@ internal static class SettingsMenuInjector
         LinkNavigation(selection);
     }
 
-    private static void InjectToggleIntoGame(SettingsOption option, Transform selection, GameObject template)
+    private static void InjectOptionIntoGame(SettingsOption option, Transform selection, GameObject template, Text defaultValueTemplate)
     {
         GameObject existing = FindRuntimeClone(option, selection);
         if (existing != null)
@@ -291,7 +312,7 @@ internal static class SettingsMenuInjector
             ModToggleOption existingToggle = existing.GetComponent<ModToggleOption>();
             EventsButton existingButton = existing.GetComponentsInChildren<EventsButton>(true).FirstOrDefault();
             existingToggle?.AttachButton(existingButton);
-            ModLog.Info($"Reusing injected custom settings toggle `{option.Id}` in current game menu");
+            ModLog.Info($"Reusing injected custom settings option `{option.Id}` in current game menu");
             return;
         }
 
@@ -304,15 +325,18 @@ internal static class SettingsMenuInjector
 
         // Clone the template option
         GameObject clone = Object.Instantiate(template, selection);
-        clone.name = $"ModToggle {option.Id}";
+        clone.name = $"ModOption {option.Id}";
+        DisableLocalization(clone);
 
         // Diagnostic: where did the clone land, and is it visible?
         ModLogExtensions.DebugIfDebugBuild($"DIAG injected clone.name=`{clone.name}` parent=`{(clone.transform.parent != null ? clone.transform.parent.name : "null")}` activeSelf={clone.activeSelf} activeInHierarchy={clone.activeInHierarchy} localPos={clone.transform.localPosition} selection.childCount={selection.childCount}");
 
-        // Locate the template's value text (the vanilla highlightableText, which displays Enabled/Disabled)
+        // Use the registered type's vanilla value text where possible; text action options may not need one.
         EventsButton button = clone.GetComponentsInChildren<EventsButton>(true).FirstOrDefault();
         MenuButton menuButton = button?.GetComponent<MenuButton>();
-        Text valueTemplate = TemplateLocator.FindToggleValueText(selection, template);
+        Text valueTemplate = option.Type == OptionType.Toggle
+            ? TemplateLocator.FindToggleValueText(selection, template) ?? defaultValueTemplate
+            : defaultValueTemplate;
         Text valueText = null;
         GameObject valueClone = null;
         Vector3 valueOffset = Vector3.zero;
@@ -323,8 +347,9 @@ internal static class SettingsMenuInjector
                 valueOffset = valueTemplate.transform.position - titleTemplate.transform.position;
 
             valueClone = Object.Instantiate(valueTemplate.gameObject);
-            valueClone.name = $"ModToggle {option.Id} Value";
-            valueClone.transform.SetParent(selection.parent, true);
+            valueClone.name = $"ModOption {option.Id} Value";
+            DisableLocalization(valueClone);
+            valueClone.transform.SetParent(clone.transform, true);
             valueText = valueClone.GetComponent<Text>();
         }
         if (valueText == null)
@@ -336,27 +361,31 @@ internal static class SettingsMenuInjector
         GameObject selectionObj = EnsureSelectionImage(clone, template);
         if (valueText == null)
         {
-            AbortInjection(option, clone, $"Failed to inject `{option.Id}`: no toggle value text found in template");
-            return;
+            if (option.Type != OptionType.Text || option.DefaultValue is int)
+            {
+                AbortInjection(option, clone, $"Failed to inject `{option.Id}`: no value text found in template");
+                return;
+            }
+            valueText = titleText;
         }
         if (titleText == null)
         {
-            AbortInjection(option, clone, $"Failed to inject `{option.Id}`: no title text found in toggle template");
+            AbortInjection(option, clone, $"Failed to inject `{option.Id}`: no title text found in option template");
             return;
         }
         if (button == null)
         {
-            AbortInjection(option, clone, $"Failed to inject option={option.Id}: no EventsButton found in toggle template");
+            AbortInjection(option, clone, $"Failed to inject option={option.Id}: no EventsButton found in option template");
             return;
         }
         if (selectionObj == null)
-            ModLog.Warn($"Custom settings toggle `{option.Id}` has no `Img` selection image");
+            ModLog.Warn($"Custom settings option `{option.Id}` has no `Img` selection image");
 
-        // Wire up the toggle behaviour. The title is rendered on the left and the value on the right.
+        // Wire up the option behaviour. The title is rendered on the left and the value on the right.
         option.RuntimeUI = clone;
-        ModToggleOption toggle = clone.AddComponent<ModToggleOption>();
-        toggle.Initialize(option, valueText, selectionObj, valueText, titleText);
-        toggle.AttachButton(button);
+        ModToggleOption runtimeOption = clone.AddComponent<ModToggleOption>();
+        runtimeOption.Initialize(option, valueText, selectionObj, valueText, titleText);
+        runtimeOption.AttachButton(button);
 
         // The Selection container's VerticalLayoutGroup is disabled at runtime (it is an editor-time
         // helper); the vanilla options are laid out by absolute coordinates. Re-pack the list by
@@ -381,7 +410,7 @@ internal static class SettingsMenuInjector
         ModLogExtensions.DebugIfDebugBuild($"DIAG vlg.enabled={(vlg != null && vlg.enabled)} controls({(controls != null ? controls.name : "null")}) pos={posOf(controls)} childCount={selection.childCount}");
         ModLogExtensions.DebugIfDebugBuild($"DIAG post-layout clone.name=`{clone.name}` localPos={clone.transform.localPosition} anchoredPos={(clone.transform as RectTransform)?.anchoredPosition} sibling={clone.transform.GetSiblingIndex()}/{selection.childCount} activeInHierarchy={clone.activeInHierarchy}");
         valueClone?.transform.position = titleText.transform.position + valueOffset;
-        ModLog.Info($"Injected custom settings toggle `{option.Id}` into game menu");
+        ModLog.Info($"Injected custom settings option `{option.Id}` ({option.Type}) into game menu");
     }
 
     private static void AbortInjection(SettingsOption option, GameObject clone, string message)
@@ -398,7 +427,11 @@ internal static class SettingsMenuInjector
         if (runtime != null && runtime.transform.parent == selection)
             return runtime;
 
-        GameObject namedClone = FindChildByName(selection, $"ModToggle {option.Id}");
+        GameObject namedClone = FindChildByName(selection, $"ModOption {option.Id}");
+        if (namedClone != null && namedClone.GetComponent<ModToggleOption>() != null)
+            return namedClone;
+
+        namedClone = FindChildByName(selection, $"ModToggle {option.Id}");
         return namedClone != null && namedClone.GetComponent<ModToggleOption>() != null
             ? namedClone
             : null;
@@ -423,24 +456,22 @@ internal static class SettingsMenuInjector
         EventsButton firstButton = first.GetComponentsInChildren<EventsButton>(true).FirstOrDefault();
 
         Transform previous = null;
-        var customToggles = new List<ModToggleOption>();
         var customButtons = new List<EventsButton>();
         var navigationButtons = new List<EventsButton>();
         for (int i = 0; i < selection.childCount; i++)
         {
             Transform child = selection.GetChild(i);
-            ModToggleOption customToggle = child.GetComponent<ModToggleOption>();
+            ModToggleOption customOption = child.GetComponent<ModToggleOption>();
             EventsButton button = child.GetComponentsInChildren<EventsButton>(true).FirstOrDefault();
             if (button != null)
                 navigationButtons.Add(button);
-            if (customToggle != null)
+            if (customOption != null)
             {
                 if (button == null)
                 {
                     ModLog.Error($"Failed to link custom settings navigation: custom child `{child.name}` has no EventsButton");
                     return;
                 }
-                customToggles.Add(customToggle);
                 customButtons.Add(button);
             }
             else if (button != null)
@@ -461,8 +492,8 @@ internal static class SettingsMenuInjector
         for (int i = 0; i < customButtons.Count; i++)
         {
             customButtons[i].gameObject.name = customButtons.Count == 1
-                ? "ModToggle_NavText"
-                : $"ModToggle_NavText_{i}";
+                ? "ModOption_NavText"
+                : $"ModOption_NavText_{i}";
         }
 
         SuspendVerticalNavigations(navigationButtons);
@@ -509,6 +540,12 @@ internal static class SettingsMenuInjector
                 return child.gameObject;
         }
         return null;
+    }
+
+    private static void DisableLocalization(GameObject root)
+    {
+        foreach (I2.Loc.Localize localize in root.GetComponentsInChildren<I2.Loc.Localize>(true))
+            localize.enabled = false;
     }
 
     private static GameObject EnsureSelectionImage(GameObject clone, GameObject template)

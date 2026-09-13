@@ -33,6 +33,52 @@ public class CustomSettings : BlasMod
         provider.RegisterCustomSettingsOption(
             debugToggle,
             SettingsMenuTarget.Vanilla(VanillaMenuTarget.Game));
+
+        SettingsOption debugArrow = new SettingsOption
+        {
+            Id = "debug_arrow",
+            Title = "Debug Arrow",
+            Type = OptionType.Arrow,
+            Choices = ["FIRST", "SECOND", "THIRD"],
+            DefaultValue = 0
+        };
+        debugArrow.OnChange = value =>
+            ModLog.Debug($"[CustomSettings] DEBUG debug_arrow OnChange payload={value} GetValue<int>()={debugArrow.GetValue<int>()}");
+        debugArrow.OnClose = () =>
+            ModLog.Debug($"[CustomSettings] DEBUG debug_arrow OnClose GetValue<int>()={debugArrow.GetValue<int>()}");
+        provider.RegisterCustomSettingsOption(
+            debugArrow,
+            SettingsMenuTarget.Vanilla(VanillaMenuTarget.Game));
+
+        SettingsOption debugTextNumber = new SettingsOption
+        {
+            Id = "debug_text_number",
+            Title = "Debug Number",
+            Type = OptionType.Text,
+            DefaultValue = 10
+        };
+        debugTextNumber.OnChange = value =>
+            ModLog.Debug($"[CustomSettings] DEBUG debug_text_number OnChange payload={value} GetValue<int>()={debugTextNumber.GetValue<int>()}");
+        debugTextNumber.OnClose = () =>
+            ModLog.Debug($"[CustomSettings] DEBUG debug_text_number OnClose GetValue<int>()={debugTextNumber.GetValue<int>()}");
+        provider.RegisterCustomSettingsOption(
+            debugTextNumber,
+            SettingsMenuTarget.Vanilla(VanillaMenuTarget.Game));
+
+        SettingsOption debugTextAction = new SettingsOption
+        {
+            Id = "debug_text_action",
+            Title = "Debug Action",
+            Type = OptionType.Text
+        };
+        debugTextAction.OnChange = value =>
+            ModLog.Debug($"[CustomSettings] DEBUG debug_text_action OnChange payload={(value == null ? "<null>" : value)}");
+        debugTextAction.OnClose = () =>
+            ModLog.Debug("[CustomSettings] DEBUG debug_text_action OnClose");
+        provider.RegisterCustomSettingsOption(
+            debugTextAction,
+            SettingsMenuTarget.Vanilla(VanillaMenuTarget.Game));
+
         provider.RegisterCustomSettingsTab(
             new SettingsTab { Id = "debug_tab", Title = "Debug Tab" },
             SettingsMenuTarget.Vanilla(VanillaMenuTarget.Game));

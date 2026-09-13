@@ -68,7 +68,8 @@ internal static class OptionsWidget_UpdateInputGameOptions_CustomToggle_Patch
 
         EventSystem eventSystem = EventSystem.current;
         GameObject current = eventSystem?.currentSelectedGameObject;
-        ModLogExtensions.DebugIfDebugBuild($"[CustomSettings] DIAG horizontal input action=suppressed left={left} optionLastGameSelected={___optionLastGameSelected} current={(current != null ? current.name : "null")} frame={Time.frameCount}");
+        ModLogExtensions.DebugIfDebugBuild($"[CustomSettings] DIAG horizontal input action=custom left={left} optionLastGameSelected={___optionLastGameSelected} current={(current != null ? current.name : "null")} frame={Time.frameCount}");
+        SettingsMenuInjector.ChangeSelectedValue(left);
         return false;
     }
 }
