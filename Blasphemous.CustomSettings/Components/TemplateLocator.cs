@@ -80,7 +80,7 @@ internal static class TemplateLocator
         return FindGameOptionValueText(OptionsWidget.GAME_OPTIONS.ENABLEHOWTOPLAY);
     }
 
-    internal static void AttachGameOptionValueTexts(Transform selection)
+    internal static void AlignGameOptionValueTexts(Transform selection)
     {
         IDictionary elements = FindGameElements();
         if (elements == null || selection == null)
@@ -98,6 +98,10 @@ internal static class TemplateLocator
             if (row == null)
                 continue;
 
+            Text title = row.GetComponentInChildren<Text>(true);
+            if (title == null)
+                continue;
+
             Transform value = selectable.highlightableText.transform;
             Transform valueRoot = value.parent != null
                 && value.parent.name == selectable.parent.name
@@ -106,7 +110,9 @@ internal static class TemplateLocator
             if (valueRoot == selection || valueRoot == selection.parent || valueRoot.IsChildOf(selection))
                 continue;
 
-            valueRoot.SetParent(row, true);
+            Vector3 position = valueRoot.position;
+            position.y += title.transform.position.y - value.position.y;
+            valueRoot.position = position;
         }
     }
 

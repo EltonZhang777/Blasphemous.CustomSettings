@@ -279,7 +279,6 @@ internal static class SettingsMenuInjector
             return;
 
         Text defaultValueTemplate = TemplateLocator.FindDefaultValueText(selection, toggleTemplate);
-        TemplateLocator.AttachGameOptionValueTexts(selection);
 
         foreach (SettingsOption option in options)
         {
@@ -297,6 +296,8 @@ internal static class SettingsMenuInjector
 
             InjectOptionIntoGame(option, selection, template, defaultValueTemplate);
         }
+
+        TemplateLocator.AlignGameOptionValueTexts(selection);
 
         // Reconcile the complete ring on every GAME menu open. This also repairs the ring after
         // OptionsWidget or a scene transition has restored the vanilla navigation links.
@@ -339,13 +340,8 @@ internal static class SettingsMenuInjector
             : defaultValueTemplate;
         Text valueText = null;
         GameObject valueClone = null;
-        Vector3 valueOffset = Vector3.zero;
         if (valueTemplate != null)
         {
-            Text titleTemplate = clone.GetComponentsInChildren<Text>(true).FirstOrDefault();
-            if (titleTemplate != null)
-                valueOffset = valueTemplate.transform.position - titleTemplate.transform.position;
-
             valueClone = Object.Instantiate(valueTemplate.gameObject);
             valueClone.name = $"ModOption {option.Id} Value";
             DisableLocalization(valueClone);
@@ -409,7 +405,12 @@ internal static class SettingsMenuInjector
         static string posOf(Transform t) => t == null ? "n/a" : $"anchored={t.GetComponent<RectTransform>()?.anchoredPosition} local={t.localPosition}";
         ModLogExtensions.DebugIfDebugBuild($"DIAG vlg.enabled={(vlg != null && vlg.enabled)} controls({(controls != null ? controls.name : "null")}) pos={posOf(controls)} childCount={selection.childCount}");
         ModLogExtensions.DebugIfDebugBuild($"DIAG post-layout clone.name=`{clone.name}` localPos={clone.transform.localPosition} anchoredPos={(clone.transform as RectTransform)?.anchoredPosition} sibling={clone.transform.GetSiblingIndex()}/{selection.childCount} activeInHierarchy={clone.activeInHierarchy}");
-        valueClone?.transform.position = titleText.transform.position + valueOffset;
+        if (valueClone != null)
+        {
+            Vector3 valuePosition = valueClone.transform.position;
+            valuePosition.y = titleText.transform.position.y;
+            valueClone.transform.position = valuePosition;
+        }
         ModLog.Info($"Injected custom settings option `{option.Id}` ({option.Type}) into game menu");
     }
 
